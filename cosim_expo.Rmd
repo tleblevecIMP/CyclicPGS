@@ -1,0 +1,348 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+we have seen that the conditioning was difficult with a Gaussian covariance. 
+Therefore, we perform the same method that precedently, with exponential covariances. 
+We have proved that the covariance matrix was more stable, and could be inverted safely. 
+We may still use a Gaussian covariance in the lateral direction, it is more stable because less data in this direction. 
+
+```{r}
+source("cosim_functions.R")
+```
+```{r}
+library(mvtnorm)
+```
+
+
+```{r}
+model<-function(h,range,b){return(exp(-abs(h/range))*cos(b*h) )}
+model_lat<-function(h,range){return(exp(-(h/range)^2) )}
+```
+
+
+```{r}
+rv1=0.3
+rhx1=50
+b1=0
+Z3<-sim2dexp(rv3,rhx3,b3,100,0.1,91,1,100)
+image(Z3,col = heat.colors(100))
+```
+
+```{r}
+rv1=0.3
+rv2=0.5
+rhx1=100
+rhx2=100
+b1=0
+b2=0
+rho=0.6
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+alpha1=(rho/rho1a)^2
+alpha2=1-(rho/rho1a)^2
+rv3=0.2
+rv4=0.3
+rhx3=100
+rhx4=100
+b3=0
+b4=0
+rho34=0.
+c=0.
+e=0.65
+a13=-0.
+a14=-0.1
+rho1a14 = model(a14,rv1,b1)
+```
+
+thresholds of diagenetic facies, depend on the parameters 
+
+```{r}
+qd1e4=qnorm(pd3e4) 
+
+# now the threshold with the fourth Gaussian function, that does depend on the first
+sigma1=diag(1,3)
+sigma1[1,2]=sigma1[2,1]=e*model(a14,rv1,b1)
+sigma1[1,3]=sigma1[3,1]=e*(rho/rho1a)*model(a14-shift,rv1,b1)
+sigma1[2,3]=sigma1[3,2]=rho
+
+qd2e2=0
+obj = Inf
+for ( test in 1:100 ){
+  qd2e2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(qd2e2test,-Inf,q2),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=sigma1)/pe2 - pd2e2 ) 
+  if (newobj < obj){
+    qd2e2 = qd2e2test
+    obj = newobj
+  }
+}
+
+qd2e3=0
+obj = Inf
+for ( test in 1:100 ){
+  qd2e3test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(qd2e3test,q1,q3),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=sigma1)/pe3 - pd2e3 ) 
+  if (newobj < obj){
+    qd2e3 = qd2e3test
+    obj = newobj
+  }
+}
+
+print(c(qd1e4,qd2e2,qd2e3))
+```
+
+simu 
+
+```{r}
+Z1<-sim2dexp(rv1,rhx1,b1,100,0.05,182,0.5,200)
+Y2<-sim2dexp(rv2,rhx2,b2,100,0.05,182,0.5,200)
+Z2=Y2
+for ( z in 1:180){
+  Z2[,z]=Y2[,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[,z+2]*(rho)/(rho1a)
+}
+Z3<-sim2dexp(rv3,rhx3,b3,100,0.05,182,0.5,200)
+Y4<-sim2dexp(rv4,rhx4,b4,100,0.05,182,0.5,200)
+Z4=Y4
+for ( z in 2:182){
+  Z4[,z]=Y4[,z]*sqrt(1-e^2)+Z1[,z-1]*e
+}
+
+faciesenv<-faciesdiag<-Z1
+faciesenv[Z1<q1 & Z2<q2]=1
+faciesenv[Z1<q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q3]=4
+faciesenv[Z1>q1 & Z2>q3]=3
+faciesdiag[]=1
+faciesdiag[Z1>q1 & Z2<q3 & Z3<qd1e4]=3
+faciesdiag[Z1<q1 & Z2>q2 & Z4>qd2e2]=2
+faciesdiag[Z1>q1 & Z2>q3 & Z4>qd2e3]=2
+col_env <- c("lightgreen","cadetblue","dodgerblue4","lightcoral")
+col_diag<-dcolors <- c("black","grey","yellow")
+image(faciesenv,col = col_env)
+image(faciesdiag,col = col_diag)
+bin<-bin2<-faciesenv
+#bin[]<-rbinom(91*100, 1, 0.5)
+bin[]=bin2[]=0
+bin[seq(2,182*200,by=2)]=1
+facies=faciesenv
+facies[faciesdiag==2 & bin ==1 ] = 5
+facies[faciesdiag==3]=5
+
+col_combine <- c("lightgreen","cadetblue","dodgerblue4","lightcoral","yellow")
+W<-image(facies,col = col_combine)
+```
+
+we need to look again at the experimental transiogram, to do an accurate fitting with the exponential covariance.
+transiograms of environment of depositions
+
+```{r}
+rv1=0.6
+rv2=0.7
+rhx1=50
+rhx2=50
+b1=5
+b2=0
+rho=0.7
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+alpha1=(rho/rho1a)^2
+alpha2=1-(rho/rho1a)^2
+rv3=0.4
+rv4=0.3
+rhx3=50
+rhx4=50
+b3=0
+b4=0
+rho34=0.
+c=0.
+e=0.65
+a13=-0.
+a14=-0.1
+rho1a14 = model(a14,rv1,b1)
+
+z = (1:300)/100.
+t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=rep(0,300)
+Sigma = diag(1,4)
+for (i in 1:300){
+    d = i/100.
+    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+    Sigma[1,4]=Sigma[4,1]=(rho/rho1a)*model(abs(d+shift),rv1,b1)
+    Sigma[2,3]=Sigma[3,2]=(rho/rho1a)*model(abs(d-shift),rv1,b1)
+    Sigma[2,4]=Sigma[4,2]=alpha1*model(d,rv1,b1)+alpha2*model(d,rv2,b2)
+    t11_model[i]=pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1,q2,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pe1 
+    t12_model[i]=pmvnorm(lower=c(-Inf,-Inf,-Inf,q2),upper=c(q1,q2,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe1 
+    t13_model[i]=pmvnorm(lower=c(-Inf,-Inf,q1,q3),upper=c(q1,q2,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe1 
+    t21_model[i]=pmvnorm(lower=c(-Inf,q2,-Inf,-Inf),upper=c(q1,Inf,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pe2
+    t22_model[i]=pmvnorm(lower=c(-Inf,q2,-Inf,q2),upper=c(q1,Inf,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe2
+    t23_model[i]=pmvnorm(lower=c(-Inf,q2,q1,q3),upper=c(q1,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe2
+    t31_model[i]=pmvnorm(lower=c(q1,q3,-Inf,-Inf),upper=c(Inf,Inf,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pe3
+    t32_model[i]=pmvnorm(lower=c(q1,q3,-Inf,q2),upper=c(Inf,Inf,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe3
+    t33_model[i]=pmvnorm(lower=c(q1,q3,q1,q3),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe3
+}
+par(mfrow=c(3,3))
+t11<-tr_2d_vert(e1,e1,30,nz,0.1)
+lines(z,t11_model)
+t12<-tr_2d_vert(e1,e2,30,nz,0.1)
+lines(z,t12_model)
+t13<-tr_2d_vert(e1,e3,30,nz,0.1)
+lines(z,t13_model)
+t21<-tr_2d_vert(e2,e1,30,nz,0.1)
+lines(z,t21_model)
+t22<-tr_2d_vert(e2,e2,30,nz,0.1)
+lines(z,t22_model)
+t23<-tr_2d_vert(e2,e3,30,nz,0.1)
+lines(z,t23_model)
+t31<-tr_2d_vert(e3,e1,30,nz,0.1)
+lines(z,t31_model)
+t32<-tr_2d_vert(e3,e2,30,nz,0.1)
+lines(z,t32_model)
+t33<-tr_2d_vert(e3,e3,30,nz,0.1)
+lines(z,t33_model)
+```
+
+now the diagenetic transiograms
+
+```{r}
+
+rv3=0.2
+rv4=0.6
+qd1=qnorm(pd3)
+Sigma1 = matrix(c(1,rho34,rho34,1),2,2)
+qd2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(qd1,q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - pd2 ) 
+  if (newobj < obj){
+    qd2 = q2test
+    obj = newobj
+  }
+}
+
+c(qd1,qd2)
+
+#transiograms
+
+z = (1:300)/100.
+t33d_model=t32d_model=t23d_model=t22d_model=rep(0,300)
+Sigma = diag(1,4)
+for (i in 1:300){
+    d = i/100.
+    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho34
+    Sigma[1,3]=Sigma[3,1]=model(d,rv3,b3)
+    Sigma[1,4]=Sigma[4,1]=Sigma[2,3]=Sigma[3,2]=rho34*model(d,rv3,b3)
+    Sigma[2,4]=Sigma[4,2]=(rho34^2)*model(d,rv3,b3)+(1-rho34^2)*model(d,rv4,b4)
+
+    t22d_model[i]=pmvnorm(lower=c(qd1,qd2,qd1,qd2),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
+    t23d_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,-Inf),upper=c(Inf,Inf,qd1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
+    t32d_model[i]=pmvnorm(lower=c(-Inf,-Inf,qd1,qd2),upper=c(qd1,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd3
+    t33d_model[i]=pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(qd1,Inf,qd1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd3
+}
+par(mfrow=c(2,2))
+t22d<-tr_2d_vert(d2,d2,30,nz,0.1)
+lines(z,t22d_model)
+t23d<-tr_2d_vert(d2,d3,30,nz,0.1)
+lines(z,t23d_model)
+t32d<-tr_2d_vert(d3,d2,30,nz,0.1)
+lines(z,t32d_model)
+t33d<-tr_2d_vert(d3,d3,30,nz,0.1)
+lines(z,t33d_model)
+```
+
+conditioning
+
+```{r}
+source("co_sim_condi.R")
+```
+
+
+```{r}
+rv1=0.6
+rv2=0.7
+rhx1=40
+rhx2=40
+#b1=5
+b1=0
+b2=0
+rho=0.7
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+alpha1=(rho/rho1a)^2
+alpha2=1-(rho/rho1a)^2
+rv3=0.2
+rv4=0.6
+rhx3=40
+rhx4=40
+b3=0
+b4=0
+rho34=0.
+c=0.
+e=0.65
+a13=-0.
+a14=-0.1
+rho1a14 = model(a14,rv1,b1)
+
+Z1<-sim2dexp(rv1,rhx1,b1,100,0.1,91,1,100)
+Y2<-sim2dexp(rv2,rhx2,b2,100,0.1,91,1,100)
+Z2=Y2
+for ( z in 1:90){
+  Z2[,z]=Y2[,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[,z+1]*(rho)/(rho1a)
+}
+Z3<-sim2dexp(rv3,rhx3,b3,100,0.1,91,1,100)
+Y4<-sim2dexp(rv4,rhx4,b4,100,0.1,91,1,100)
+Z4=Y4
+for ( z in 2:91){
+  Z4[,z]=Y4[,z]*sqrt(1-e^2)+Z1[,z-1]*e
+}
+grid<-grid_co<-array(NA,c(100,91))
+grid[3,]<-env_lat[,1]
+grid[20,]<-env_lat[,2]
+grid[55,]<-env_lat[,3]
+grid[80,]<-env_lat[,4]
+grid_co[3,]<-diag_lat[,1]
+grid_co[20,]<-diag_lat[,2]
+grid_co[55,]<-diag_lat[,3]
+grid_co[80,]<-diag_lat[,4]
+
+
+simwell<-coco_gibbs_sampling(grid,grid_co,c(q1,q2,q3),c(qd1e4,qd2e2,qd2e3),0.1,1,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1)),c(shift,a14),30)
+Z1well<-simwell[,1:91]
+Z2well<-simwell[,92:182]
+Z3well<-simwell[,183:273]
+Z4well<-simwell[,274:364]
+E<-coco_dual_krig(Z1well-Z1,Z2well-Z2,Z3well-Z3,Z4well-Z4,0.1,1,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1)),c(shift,a14))
+Z1c=Z1 + E[,1:91]
+Z2c<-Z2 +E[,92:182]
+Z3c<-Z3 +E[,183:273]
+Z4c<-Z4 +E[,274:364]
+
+faciesenv<-faciesdiag<-Z1c
+faciesenv[Z1c<q1 & Z2c<q2]=1
+faciesenv[Z1c<q1 & Z2c>q2]=2
+faciesenv[Z1c>q1 & Z2c<q3]=4
+faciesenv[Z1c>q1 & Z2c>q3]=3
+faciesdiag[]=1
+faciesdiag[Z1c>q1 & Z2c<q3 & Z3c<qd1e4]=3
+faciesdiag[Z1c<q1 & Z2c>q2 & Z4c>qd2e2]=2
+faciesdiag[Z1c>q1 & Z2c>q3 & Z4c>qd2e3]=2
+col_env <- c("lightgreen","cadetblue","dodgerblue4","lightcoral")
+W<-image(faciesenv,col = col_env)
+bin<-bin2<-faciesenv
+#bin[]<-rbinom(91*100, 1, 0.5)
+bin[]=bin2[]=0
+bin[seq(2,91*100,by=2)]=1
+facies=faciesenv
+facies[faciesdiag==2 & bin ==1 ] = 5
+facies[faciesdiag==3]=5
+
+col_combine <- c("lightgreen","cadetblue","dodgerblue4","lightcoral","yellow")
+W<-image(facies,col = col_combine)
+image(Z2c)
+image(Z2)
+```
+

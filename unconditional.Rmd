@@ -1,0 +1,213 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Unconditional simulation of prograding islands. 
+
+```{r}
+library(mvtnorm)
+```
+
+
+```{r}
+model<-function(h,range,b){return(exp(-(h/range)^2)*cos(b*h))}
+```
+```{r}
+p1=0.5
+p2=p3=0.25
+```
+
+
+```{r}
+rho=-0.98
+q1=qnorm(p1)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+q2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - p2 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+
+```
+```{r}
+shift=0.1
+shiftl=5
+rho1a=model(shift,0.3,0)*model(shiftl,30,0)
+Z1<-sim3d(0.3,30,30,0,100,0.1,100,5,50,10,20)
+Z2<-sim3d(1.2,30,30,5,100,0.1,100,5,50,10,20)
+for(x in 1:49){
+  for ( z in 1:99){
+    Z2[x,,z]=Z2[x,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x+1,,z+1]*(rho)/(rho1a)
+  }
+}
+
+```
+```{r}
+
+```
+```{r}
+shift=0.1
+shiftl=5
+r1v=0.4
+r1l=20
+r2v=0.4
+r2l=20
+p1=p2=0.15
+p3=0.7
+rho1a=model(shift,r1v,0)*model(shiftl,r1l,0)
+rho=-(rho1a-0.01)
+q1=qnorm(p1)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+q2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - p2 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+shift=0.1
+shiftl=5
+
+Z1<-sim3d(r1v,r1l,r1l,0,100,0.1,100,5,50,10,20)
+Z2<-sim3d(r2v,r2l,r2l,0,100,0.1,100,5,50,10,20)
+for(x in 2:50){
+  for ( z in 2:100){
+    Z2[x,,z]=Z2[x,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x-1,,z-1]*(rho)/(rho1a)
+  }
+}
+```
+
+```{r}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+for ( z in 1:100){
+  for ( y in 1:20){
+    for ( x in 1:50){
+      write(toString(c(faciesenv[x,y,z])),"uncond.csv",append=TRUE)
+    }
+  }
+}
+```
+
+```{r}
+r1v=0.4
+r1l=20
+r2v=0.4
+r2l=20
+p1=p2=0.15
+p3=0.7
+shiftl=5
+shift=0.1
+rho1a=model(shift,r1v,0)*model(shiftl,r1l,0)
+rho=-(rho1a-0.01)
+q1=qnorm(p1)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+q2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - p2 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+shift=0.1
+shiftl=5
+
+Z1<-sim2d(r1v,r1l,0,100,0.05,200,2.5,100)
+Z2<-sim2d(r2v,r2l,0,100,0.05,200,2.5,100)
+for(x in 3:100){
+  for ( z in 3:200){
+    Z2[x,z]=Z2[x,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x-2,z-2]*(rho)/(rho1a)
+  }
+}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+image(faciesenv,col=c("orange","red","blue"))
+```
+We can also try in three dimensions
+```{r}
+Z1<-sim3d(r1v,r1l,5*r1l,0,100,0.05,200,2.5,100,5,20)
+Z2<-sim3d(r2v,r2l,5*r1l,0,100,0.05,200,2.5,100,5,20)
+for(x in 3:100){
+  for ( z in 3:200){
+    Z2[x,,z]=Z2[x,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x-2,,z-2]*(rho)/(rho1a)
+  }
+}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+```
+
+```{r}
+for ( z in 1:200){
+  for ( y in 1:20){
+    for ( x in 1:100){
+      write(toString(c(faciesenv[x,y,z])),"islands.csv",append=TRUE)
+    }
+  }
+}
+```
+
+```{r}
+Z1<-sim2d(r1v,r1l,0,100,0.1,100,5,50)
+Z2<-sim2d(r2v,r2l,0,100,0.1,100,5,50)
+for(x in 1:49){
+  for ( z in 2:100){
+    Z2[x,z]=Z2[x,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x+1,z-1]*(rho)/(rho1a)
+  }
+}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+image(faciesenv,col=c("orange","red","blue"))
+```
+```{r}
+Z1<-sim2d(r1v,r1l,0,100,0.1,100,5,50)
+Z2<-sim2d(r2v,r2l,0,100,0.1,100,5,50)
+for(x in 1:50){
+  for ( z in 2:100){
+    Z2[x,z]=Z2[x,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1[x,z-1]*(rho)/(rho1a)
+  }
+}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+image(faciesenv,col=c("orange","red","blue"))
+```
+
+
+```{r}
+faciesenv<-Z1
+faciesenv[Z1<q1]=1
+faciesenv[Z1>q1 & Z2>q2]=2
+faciesenv[Z1>q1 & Z2<q2]=3
+image(faciesenv)
+```
+
+```{r}
+for ( z in 1:100){
+  for ( y in 1:20){
+    for ( x in 1:50){
+      write(toString(c(faciesenv[x,y,z])),"uncond.csv",append=TRUE)
+    }
+  }
+}
+```

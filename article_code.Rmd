@@ -1,0 +1,1366 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# the project is in Dropbox/coding/cosimulation
+
+```{r}
+source("C:/Users/tl3315/Dropbox/coding/cosimulation/co_sim_condi.R")
+source("C:/Users/tl3315/Dropbox/coding/cosimulation/cosim_functions.R")
+```
+```{r}
+library(mvtnorm)
+library(abind)
+```
+
+
+```{r}
+e1<-e2<-e3<-e4<-d1<-d2<-d3<-matrix(0,nz,4)
+e1[env_lat==1]=1
+e2[env_lat==2]=1
+e3[env_lat==3]=1
+e4[env_lat==4]=1
+d1[diag_lat==1]=1
+d2[diag_lat==2]=1
+d3[diag_lat==3]=1
+e1[is.na(env_lat)]=e2[is.na(env_lat)]=e3[is.na(env_lat)]=e4[is.na(env_lat)]=NA
+d1[is.na(diag_lat)]=d2[is.na(diag_lat)]=d3[is.na(diag_lat)]=NA
+```
+```{r}
+pe1 = mean(e1,na.rm=TRUE)
+pe2 = mean(e2,na.rm=TRUE)
+pe3 = mean(e3,na.rm=TRUE)
+pe4 = mean(e4,na.rm=TRUE)
+c(pe1,pe2,pe3,pe4)
+pd1=mean(d1,na.rm=TRUE)
+pd2=mean(d2,na.rm=TRUE)
+pd3=mean(d3,na.rm=TRUE)
+c(pd1,pd2,pd3)
+pd1e1=mean(d1*e1,na.rm=TRUE)/pe1
+pd1e2=mean(d1*e2,na.rm=TRUE)/pe2
+pd1e3=mean(d1*e3,na.rm=TRUE)/pe3
+pd1e4=mean(d1*e4,na.rm=TRUE)/pe4
+
+pd2e1=mean(d2*e1,na.rm=TRUE)/pe1
+pd2e2=mean(d2*e2,na.rm=TRUE)/pe2
+pd2e3=mean(d2*e3,na.rm=TRUE)/pe3
+pd2e4=mean(d2*e4,na.rm=TRUE)/pe4
+
+pd3e1=mean(d3*e1,na.rm=TRUE)/pe1
+pd3e2=mean(d3*e2,na.rm=TRUE)/pe2
+pd3e3=mean(d3*e3,na.rm=TRUE)/pe3
+pd3e4=mean(d3*e4,na.rm=TRUE)/pe4
+
+matrix(c(pd1e1,pd1e2,pd1e3,pd1e4,pd2e1,pd2e2,pd2e3,pd2e4,pd3e1,pd3e2,pd3e3,pd3e4),3,4,byrow=TRUE)
+pe1+pe2+pe3+pe4
+```
+
+
+```{r}
+env_lat[is.na(env_lat)]=0 # with 0, the gibbs sampler will find random values
+diag_lat[is.na(diag_lat)]=0
+grid<-grid_co<-array(NA,c(100,10,91))
+grid[5,8,]<-env_lat[,1]
+grid[25,6,]<-env_lat[,2]
+grid[35,3,]<-env_lat[,3]
+grid[95,7,]<-env_lat[,4]
+grid_co[5,8,]<-diag_lat[,1]
+grid_co[25,6,]<-diag_lat[,2]
+grid_co[35,3,]<-diag_lat[,3]
+grid_co[95,7,]<-diag_lat[,4]
+
+```
+ok we also want to display an image with all the logs
+we are doubling the wells for a better visualization
+```{r}
+im<-matrix(NA,100,91)
+im[5,]<-env_lat[,1]
+im[4,]<-env_lat[,1]
+im[25,]<-env_lat[,2]
+im[24,]<-env_lat[,2]
+im[35,]<-env_lat[,3]
+im[34,]<-env_lat[,3]
+im[95,]<-env_lat[,4]
+im[94,]<-env_lat[,4]
+image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+```
+print image
+```{r}
+png(file="logslate.png",width=4000,height = 2500,res=300,antialias = )
+image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+```
+we also want to display the environment of depositions and the diagenesis
+```{r}
+im<-matrix(NA,100,91)
+im[5,]<-diag_lat[,1]+4
+im[4,]<-diag_lat[,1]+4
+im[8,]<-env_lat[,1]
+im[7,]<-env_lat[,1]
+im[25,]<-diag_lat[,2]+4
+im[24,]<-diag_lat[,2]+4
+im[28,]<-env_lat[,2]
+im[27,]<-env_lat[,2]
+im[35,]<-diag_lat[,3]+4
+im[34,]<-diag_lat[,3]+4
+im[38,]<-env_lat[,3]
+im[37,]<-env_lat[,3]
+im[95,]<-diag_lat[,4]+4
+im[94,]<-diag_lat[,4]+4
+im[98,]<-env_lat[,4]
+im[97,]<-env_lat[,4]
+image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red","black","grey","yellow"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+```
+```{r}
+png(file="logslatediag2.png",width=4000,height = 2500,res=300,antialias = )
+image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red","black","grey","yellow"),ylab="Vertical distance (m)",xlab = "Lateral distance (m)")
+```
+
+```{r}
+grid2<-grid_co2<-array(NA,c(100,10,182))
+i=1
+for (j in 1:182){
+    
+    grid2[5,8,j]<-env_lat[i,1]
+    grid2[25,6,j]<-env_lat[i,2]
+    grid2[35,3,j]<-env_lat[i,3]
+    grid2[95,7,j]<-env_lat[i,4]
+    grid_co2[5,8,j]<-diag_lat[i,1]
+    grid_co2[25,6,j]<-diag_lat[i,2]
+    grid_co2[35,3,j]<-diag_lat[i,3]
+    grid_co2[95,7,j]<-diag_lat[i,4]
+    if(j%%2==0){i=i+1}
+}
+```
+
+the first figure we want to have is a 3d simulation of the Latemar conditioned ! 
+```{r}
+rv1=0.3
+rv2=1.2
+rhx1=rhy1=800
+rhx2=rhy2=800
+b1=0
+b2=5
+rho=0.6
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+warning(rho>rho1a)
+alpha1=(rho/rho1a)^2
+alpha2=1-(rho/rho1a)^2
+rv3=0.2
+rv4=0.3
+rhx3=rhy3=800
+rhx4=rhy4=800
+b3=0
+b4=0
+e=-0.8
+f=-0.5
+a14=-0.1
+a24=0.1
+rho1a14 = model(a14,rv1,b1)
+rho2a24=model(a24,rv2,b2)
+
+#thresholds
+q1=qnorm(pe1+pe2)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+q2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma1) - pe1 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+q3=0
+obj = Inf
+for ( test in 1:100 ){
+  q3test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma1) - pe4 ) 
+  if (newobj < obj){
+    q3 = q3test
+    obj = newobj
+  }
+}
+c(q1,q2,q3)
+qd1e4=qnorm(pd3e4) # no correlation with the third Gaussian function
+Sigmad = diag(1,3)
+qd2e2=0
+qd2e3=0
+obje2 = Inf
+obje3 = Inf
+for ( test in 1:100 ){
+  qd2e2test = qnorm(test/100)
+  qd2e3test = qnorm(test/100)
+  Sigmad[1,2]=Sigmad[2,1]=e*rho1a14
+  Sigmad[1,3]=Sigmad[3,1]=e*(rho/rho1a)*model(a14-shift,rv1,b1)+f*sqrt(1-(rho/rho1a)^2)*model(a24,rv2,b2)
+  Sigmad[2,3]=Sigmad[3,2]=rho
+  newobje2 =abs( pmvnorm(lower=c(qd2e2test,-Inf,q2),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmad)/pe2 - pd2e2 ) 
+  newobje3 =abs( pmvnorm(lower=c(qd2e3test,q1,q3),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigmad)/pe3 - pd2e3 )
+  if (newobje2 < obje2){
+    qd2e2 = qd2e2test
+    obje2 = newobje2
+  }
+  if (newobje3 < obje3){
+    qd2e3 = qd2e3test
+    obje3 = newobje3
+  }
+}
+c(qd1e4,qd2e2,qd2e3)
+
+Y1<-sim3d(rv1,rhx1,rhy1,b1,100,0.1,91,10,100,25,10)
+Y2<-sim3d(rv2,rhx2,rhy2,b2,100,0.1,91,10,100,25,10)
+Y3<-sim3d(rv3,rhx3,rhy3,b3,100,0.1,91,10,100,25,10)
+Y4<-sim3d(rv4,rhx4,rhy4,b4,100,0.1,91,10,100,25,10)
+
+simwell<-gibbs_sampling3d(grid,grid_co,c(q1,q2,q3),c(qd1e4,qd2e2,qd2e3),0.1,10,25,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(rhy1,rhy2,rhy3,rhy4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1),f*model(a24,rv2,b2)),c(shift,a14,a24),50)
+Y1well<-simwell[,,1:91]
+Y2well<-Z2well<-simwell[,,92:182]
+Y3well<-simwell[,,183:273]
+Y4well<-Z4well<-simwell[,,274:364]
+
+# back transformation of the Zi into Yi at the wells
+for( z in 2:90){
+  Y2well[,,z]=(Z2well[,,z]-(rho/rho1a)*Y1well[,,z+1])/sqrt(1-(rho^2)/(rho1a^2))
+  Y4well[,,z]=(Z4well[,,z]-Y1well[,,z-1]*e-f*Y2well[,,z+1])/sqrt(1-(e^2)-(f^2))
+}
+
+Z1c =Y1 + dual_krig_surf(Y1well-Y1,rhx1,rhy1,10,25)
+Z2c<-Y2c<-Y2 +dual_krig_surf(Y2well-Y2,rhx2,rhy2,10,25)
+Z3c<-Y3 +dual_krig_surf(Y3well-Y3,rhx3,rhy3,10,25)
+Z4c<-Y4c<-Y4 +dual_krig_surf(Y4well-Y4,rhx4,rhy4,10,25)
+
+for( z in 2:90){
+  Z2c[,,z]=Y2c[,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1c[,,z+1]*(rho)/(rho1a)
+  Z4c[,,z]=Y4c[,,z]*sqrt(1-(e^2)-(f^2))+Z1c[,,z-1]*e+f*Y2c[,,z+1]
+}
+
+faciesenv<-faciesdiag<-Z1c
+faciesenv[Z1c<q1 & Z2c<q2]=1
+faciesenv[Z1c<q1 & Z2c>q2]=2
+faciesenv[Z1c>q1 & Z2c<q3]=4
+faciesenv[Z1c>q1 & Z2c>q3]=3
+faciesdiag[]=1
+faciesdiag[Z1c>q1 & Z2c<q3 & Z3c<qd1e4]=3
+faciesdiag[Z1c<q1 & Z2c>q2 & Z4c>qd2e2]=2
+faciesdiag[Z1c>q1 & Z2c>q3 & Z4c>qd2e3]=2
+col_env <- c("lightgreen","cadetblue","dodgerblue4","lightcoral")
+griddata<-grid
+griddata[griddata==0]=NA
+W<-image(griddata[,2,],col = col_env)
+W<-image(faciesenv[,2,],col = col_env)
+
+
+```
+
+```{r}
+for ( z in 1:91){
+  for ( y in 1:10){
+    for ( x in 1:100){
+      write(toString(c(faciesenv[x,y,z])),"latemarcondenv.csv",append=TRUE)
+      write(toString(c(faciesdiag[x,y,z])),"latemarconddiag.csv",append=TRUE)
+    }
+  }
+}
+```
+another simu with only three Gaussian functions
+(verifier le gibbs sampling pour la nouvelle truncation rule)
+
+```{r}
+library(mvtnorm)
+```
+```{r}
+source("co_sim_condi.R")
+```
+
+
+```{r}
+par(bg="transparent")
+rv1=0.3
+rv2=1.2
+rhx1=rhy1=800
+rhx2=rhy2=800
+b1=0
+b2=5
+rho=0.6
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+warning(rho>rho1a)
+alpha1=(rho/rho1a)^2
+alpha2=1-(rho/rho1a)^2
+rv3=0.2
+rv4=0.3
+rhx3=rhy3=800
+rhx4=rhy4=800
+b3=0
+b4=0
+e=-0.8
+f=-0.5
+a14=-0.1
+a24=0.1
+rho1a14 = model(a14,rv1,b1)
+rho2a24=model(a24,rv2,b2)
+
+#thresholds
+q1=qnorm(pe1+pe2)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+q2=0
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma1) - pe1 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+q3=0
+obj = Inf
+for ( test in 1:100 ){
+  q3test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma1) - pe4 ) 
+  if (newobj < obj){
+    q3 = q3test
+    obj = newobj
+  }
+}
+c(q1,q2,q3)
+
+Sigmad = diag(1,3)
+qd2e2=0
+qd2e3=0
+qd1e4=0
+obje2 = Inf
+obje3 = Inf
+obje4 = Inf
+for ( test in 1:100 ){
+  qd2e2test = qnorm(test/100)
+  qd2e3test = qnorm(test/100)
+  qd1e4test = qnorm(test/100)
+  Sigmad[1,2]=Sigmad[2,1]=e*rho1a14
+  Sigmad[1,3]=Sigmad[3,1]=e*(rho/rho1a)*model(a14-shift,rv1,b1)+f*sqrt(1-(rho/rho1a)^2)*model(a24,rv2,b2)
+  Sigmad[2,3]=Sigmad[3,2]=rho
+  newobje2 =abs( pmvnorm(lower=c(qd2e2test,-Inf,q2),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmad)/pe2 - pd2e2 ) 
+  newobje3 =abs( pmvnorm(lower=c(qd2e3test,q1,q3),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigmad)/pe3 - pd2e3 )
+  newobje4 =abs( pmvnorm(lower=c(qd1e4test,q1,-Inf),upper=c(Inf,Inf,q3),mean=c(0,0,0),sigma=Sigmad)/pe4 - pd3e4 )
+  if (newobje2 < obje2){
+    qd2e2 = qd2e2test
+    obje2 = newobje2
+  }
+  if (newobje3 < obje3){
+    qd2e3 = qd2e3test
+    obje3 = newobje3
+  }
+  if (newobje4 < obje4){
+    qd1e4 = qd1e4test
+    obje4 = newobje4
+  }
+}
+
+c(qd1e4,qd2e2,qd2e3)
+# here Y4 is not used
+Y1<-sim3d(rv1,rhx1,rhy1,b1,100,0.05,182,10,100,25,10)
+Y2<-sim3d(rv2,rhx2,rhy2,b2,100,0.05,182,10,100,25,10)
+Y3<-sim3d(rv3,rhx3,rhy3,b3,100,0.05,182,10,100,25,10)
+Y4<-sim3d(rv4,rhx4,rhy4,b4,100,0.05,182,10,100,25,10)
+#careful to check that we put 0 to extend the gibbs sampling to where there is no data
+simwell<-gibbs_sampling3d(grid2,grid_co2,c(q1,q2,q3),c(qd1e4,qd2e2,qd2e3),0.05,10,25,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(rhy1,rhy2,rhy3,rhy4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1),f*model(a24,rv2,b2)),c(shift,a14,a24),50)
+Y1well<-simwell[,,1:182]
+Y2well<-Z2well<-simwell[,,183:364]
+Y3well<-simwell[,,365:546]
+Y4well<-Z4well<-simwell[,,547:728]
+
+# back transformation of the Zi into Yi at the wells
+# be VERY CAREFUL, we cannot put Y4 and Y2 in the same loop
+for( z in 3:180){
+  Y2well[,,z]=(Z2well[,,z]-(rho/rho1a)*Y1well[,,z+2])/sqrt(1-(rho^2)/(rho1a^2))
+}
+for( z in 3:180){
+  Y4well[,,z]=(Z4well[,,z]-Y1well[,,z-2]*e-f*Y2well[,,z+2])/sqrt(1-(e^2)-(f^2))
+}
+
+Z1c =Y1 + dual_krig_surf(Y1well-Y1,rhx1,rhy1,10,25)
+Z2c<-Y2c<-Y2 +dual_krig_surf(Y2well-Y2,rhx2,rhy2,10,25)
+Z3c<-Y3 +dual_krig_surf(Y3well-Y3,rhx3,rhy3,10,25)
+Z4c<-Y4c<-Y4 +dual_krig_surf(Y4well-Y4,rhx4,rhy4,10,25)
+
+for( z in 3:180){
+  Z2c[,,z]=Y2c[,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1c[,,z+2]*(rho)/(rho1a)
+}
+for( z in 3:180){
+  Z4c[,,z]=Y4c[,,z]*sqrt(1-(e^2)-(f^2))+Z1c[,,z-2]*e+f*Y2c[,,z+2]
+}
+
+faciesenv<-faciesdiag<-Z1c
+faciesenv[Z1c<q1 & Z2c<q2]=1
+faciesenv[Z1c<q1 & Z2c>q2]=2
+faciesenv[Z1c>q1 & Z2c<q3]=4
+faciesenv[Z1c>q1 & Z2c>q3]=3
+faciesdiag[]=1
+faciesdiag[Z1c>q1 & Z2c<q3 & Z4c>qd1e4]=3
+faciesdiag[Z1c<q1 & Z2c>q2 & Z4c>qd2e2]=2
+faciesdiag[Z1c>q1 & Z2c>q3 & Z4c>qd2e3]=2
+col_env <- c("lightgreen","cadetblue","dodgerblue4","lightcoral")
+griddata<-grid2
+griddata[griddata==0]=NA
+W<-image(griddata[,8,],col = col_env)
+W<-image(faciesenv[,8,],col = col_env)
+W<-image(grid_co2[,8,])
+W<-image(faciesdiag[,8,])
+```
+computing transiograms on the realization
+```{r}
+i1real<-i2real<-i3real<-i4real<-faciesenv
+i1real[faciesenv!=1]=0
+i2real[faciesenv==2]=1
+i2real[faciesenv!=2]=0
+i3real[faciesenv==3]=1
+i3real[faciesenv!=3]=0
+i4real[faciesenv==4]=1
+i4real[faciesenv!=4]=0
+t11real3=tr_3d_vert(i1real,i1real,60)
+t12real3=tr_3d_vert(i1real,i2real,60)
+t13real3=tr_3d_vert(i1real,i3real,60)
+t14real3=tr_3d_vert(i1real,i4real,60)
+t21real3=tr_3d_vert(i2real,i1real,60)
+t22real3=tr_3d_vert(i2real,i2real,60)
+t23real3=tr_3d_vert(i2real,i3real,60)
+t24real3=tr_3d_vert(i2real,i4real,60)
+t31real3=tr_3d_vert(i3real,i1real,60)
+t32real3=tr_3d_vert(i3real,i2real,60)
+t33real3=tr_3d_vert(i3real,i3real,60)
+t34real3=tr_3d_vert(i3real,i4real,60)
+t41real3=tr_3d_vert(i4real,i1real,60)
+t42real3=tr_3d_vert(i4real,i2real,60)
+t43real3=tr_3d_vert(i4real,i3real,60)
+t44real3=tr_3d_vert(i4real,i4real,60)
+
+z = (1:60)/20.
+png(file="laterealtransio.png",width=2000,height = 1600,res=300)
+par(mar=c(2,3,1,1),mfrow=c(4,4))
+plot(z,t11real)
+title(main=expression(paste('t'[e1e1],"(h)")),line=-1)
+plot(z,t12real)
+title(main=expression(paste('t'[e1e2],"(h)")),line=-1)
+plot(z,t13real)
+title(main=expression(paste('t'[e1e3],"(h)")),line=-1)
+plot(z,t14real)
+title(main=expression(paste('t'[e1e4],"(h)")),line=-1)
+plot(z,t21real)
+title(main=expression(paste('t'[e2e1],"(h)")),line=-1)
+plot(z,t22real)
+title(main=expression(paste('t'[e2e2],"(h)")),line=-1)
+plot(z,t23real)
+title(main=expression(paste('t'[e2e3],"(h)")),line=-1)
+plot(z,t24real)
+title(main=expression(paste('t'[e2e4],"(h)")),line=-1)
+plot(z,t31real)
+title(main=expression(paste('t'[e3e1],"(h)")),line=-1)
+plot(z,t32real)
+title(main=expression(paste('t'[e3e2],"(h)")),line=-1)
+plot(z,t33real)
+title(main=expression(paste('t'[e3e3],"(h)")),line=-1)
+plot(z,t34real)
+title(main=expression(paste('t'[e3e4],"(h)")),line=-1)
+plot(z,t41real)
+title(main=expression(paste('t'[e4e1],"(h)")),line=-1)
+plot(z,t42real)
+title(main=expression(paste('t'[e4e2],"(h)")),line=-1)
+plot(z,t43real)
+title(main=expression(paste('t'[e4e3],"(h)")),line=-1)
+plot(z,t44real)
+title(main=expression(paste('t'[e4e4],"(h)")),line=-1)
+```
+average
+```{r}
+t11reals=(t11real+t11real2+t11real3)/3
+t12reals=(t12real+t12real2+t12real3)/3
+t13reals=(t13real+t13real2+t13real3)/3
+t14reals=(t14real+t14real2+t14real3)/3
+t21reals=(t21real+t21real2+t21real3)/3
+t22reals=(t22real+t22real2+t22real3)/3
+t23reals=(t23real+t23real2+t23real3)/3
+t24reals=(t24real+t24real2+t24real3)/3
+t31reals=(t31real+t31real2+t31real3)/3
+t32reals=(t32real+t32real2+t32real3)/3
+t33reals=(t33real+t33real2+t33real3)/3
+t34reals=(t34real+t34real2+t34real3)/3
+t41reals=(t41real+t41real2+t41real3)/3
+t42reals=(t42real+t42real2+t42real3)/3
+t43reals=(t43real+t43real2+t43real3)/3
+t44reals=(t44real+t44real2+t44real3)/3
+```
+and also with the diagenetic facies
+```{r}
+d1real<-d2real<-d3real<-faciesdiag
+d1real[faciesdiag!=1]=0
+d2real[faciesdiag==2]=1
+d2real[faciesdiag!=2]=0
+d3real[faciesdiag==3]=1
+d3real[faciesdiag!=3]=0
+td3e1real3=tr_3d_vert(d3real,i1real,60)
+td3e2real3=tr_3d_vert(d3real,i2real,60)
+td3e3real3=tr_3d_vert(d3real,i3real,60)
+td3e4real3=tr_3d_vert(d3real,i4real,60)
+td2e1real3=tr_3d_vert(d2real,i1real,60)
+td2e2real3=tr_3d_vert(d2real,i2real,60)
+td2e3real3=tr_3d_vert(d2real,i3real,60)
+td2e4real3=tr_3d_vert(d2real,i4real,60)
+td3d3real3=tr_3d_vert(d3real,d3real,60)
+td2d3real3=tr_3d_vert(d2real,d3real,60)
+td3d2real3=tr_3d_vert(d3real,d2real,60)
+td2d2real3=tr_3d_vert(d2real,d2real,60)
+
+```
+
+
+```{r}
+for ( z in 1:182){
+  for ( y in 1:10){
+    for ( x in 1:100){
+      write(toString(c(faciesenv[x,y,z])),"latemarcondenvres6.csv",append=TRUE)
+      write(toString(c(faciesdiag[x,y,z])),"latemarconddiagres.csv",append=TRUE)
+    }
+  }
+}
+```
+we can also combine the environment and the diagenesis in a single model
+```{r}
+combined<-faciesenv
+combined[faciesdiag==2]=5
+combined[faciesdiag==3]=6
+for ( z in 1:182){
+  for ( y in 1:10){
+    for ( x in 1:100){
+      write(toString(c(combined[x,y,z])),"latemarcombined4.csv",append=TRUE)
+    }
+  }
+}
+```
+
+
+we also want to enter the data ! 
+```{r}
+griddata<-grid
+griddata[griddata==0]=NA
+gridcodata<-grid_co
+gridcodata[gridcodata==0]=NA
+
+for ( z in 1:91){
+  for ( y in 1:10){
+    for ( x in 1:100){
+      write(toString(c(griddata[x,y,z])),"dataenv.csv",append=TRUE)
+      write(toString(c(gridcodata[x,y,z])),"datadiag.csv",append=TRUE)
+    }
+  }
+}
+```
+data with all facies
+```{r}
+griddata<-grid
+griddata[griddata==0]=NA
+gridcodata<-grid_co
+gridcodata[gridcodata==0]=NA
+combineddata<-griddata
+combineddata[gridcodata==2]=5
+combineddata[gridcodata==3]=6
+for ( z in 1:91){
+  for ( y in 1:10){
+    for ( x in 1:100){
+      write(toString(c(combineddata[x,y,z])),"latemarcombineddata.csv",append=TRUE)
+    }
+  }
+}
+```
+let s compute the embedded transitions of one realization
+```{r}
+i1real<-i2real<-i3real<-i4real<-faciesenv
+i1real[faciesenv!=1]=0
+i2real[faciesenv==2]=1
+i2real[faciesenv!=2]=0
+i3real[faciesenv==3]=1
+i3real[faciesenv!=3]=0
+i4real[faciesenv==4]=1
+i4real[faciesenv!=4]=0
+r12=embedded3d(i1real,i2real)
+r13=embedded3d(i1real,i3real)
+r14=embedded3d(i1real,i4real)
+r21=embedded3d(i2real,i1real)
+r23=embedded3d(i2real,i3real)
+r24=embedded3d(i2real,i4real)
+r31=embedded3d(i3real,i1real)
+r32=embedded3d(i3real,i2real)
+r34=embedded3d(i3real,i4real)
+r41=embedded3d(i4real,i1real)
+r42=embedded3d(i4real,i2real)
+r43=embedded3d(i4real,i3real)
+matrix(c(0,r12,r13,r14,r21,0,r23,r24,r31,r32,0,r34,r41,r42,r43,0),4,4,byrow=TRUE)
+```
+```{r}
+real7<-matrix(c(0,r12,r13,r14,r21,0,r23,r24,r31,r32,0,r34,r41,r42,r43,0),4,4,byrow=TRUE)
+```
+```{r}
+(real1+real2+real3+real4+real5+real6)/6
+```
+
+
+and the data
+```{r}
+r12d=embedded2d(e1,e2)
+r13d=embedded2d(e1,e3)
+r14d=embedded2d(e1,e4)
+s1=r12d+r13d+r14d
+r21d=embedded2d(e2,e1)
+r23d=embedded2d(e2,e3)
+r24d=embedded2d(e2,e4)
+s2=r21d+r23d+r24d
+r31d=embedded2d(e3,e1)
+r32d=embedded2d(e3,e2)
+r34d=embedded2d(e3,e4)
+s3=r31d+r32d+r34d
+r41d=embedded2d(e4,e1)
+r42d=embedded2d(e4,e2)
+r43d=embedded2d(e4,e3)
+s4=r41d+r42d+r43d
+matrix(c(0,r12d/s1,r13d/s1,r14d/s1,r21d/s2,0,r23d/s2,r24d/s2,r31d/s3,r32d/s3,0,r34d/s3,r41d/s4,r42d/s4,r43d/s4,0),4,4,byrow=TRUE)
+```
+
+
+ok it is also necessary to compute the transiograms on the final model
+```{r}
+real1<-real2<-real3<-real4<-faciesenv
+real1[faciesenv!=1]=0
+real2[faciesenv==2]=1
+real2[faciesenv!=2]=0
+real3[faciesenv==3]=1
+real3[faciesenv!=3]=0
+real4[faciesenv==4]=1
+real4[faciesenv!=4]=0
+t11real<-tr_3d_vert(real1,real1,50)
+t12real<-tr_3d_vert(real1,real2,50)
+t13real<-tr_3d_vert(real1,real3,50)
+t14real<-tr_3d_vert(real1,real4,50)
+t21real<-tr_3d_vert(real2,real1,50)
+t22real<-tr_3d_vert(real2,real2,50)
+t23real<-tr_3d_vert(real2,real3,50)
+t24real<-tr_3d_vert(real2,real4,50)
+t31real<-tr_3d_vert(real3,real1,50)
+t32real<-tr_3d_vert(real3,real2,50)
+t33real<-tr_3d_vert(real3,real3,50)
+t34real<-tr_3d_vert(real3,real4,50)
+t41real<-tr_3d_vert(real4,real1,50)
+t42real<-tr_3d_vert(real4,real2,50)
+t43real<-tr_3d_vert(real4,real3,50)
+t44real<-tr_3d_vert(real4,real4,50)
+par(mfrow=c(4,4))
+plot(50,t11real)
+plot(length(t44real),t12real)
+plot(length(t44real),t13real)
+plot(length(t44real),t14real)
+plot(length(t44real),t21real)
+plot(length(t44real),t22real)
+plot(length(t44real),t23real)
+plot(length(t44real),t24real)
+plot(length(t44real),t31real)
+plot(length(t44real),t32real)
+plot(length(t44real),t33real)
+plot(length(t44real),t34real)
+plot(length(t44real),t41real)
+plot(length(t44real),t42real)
+plot(length(t44real),t43real)
+plot(length(t44real),t44real)
+```
+
+
+ok now that we have looked at the case study of the Latemar, 
+we also want to create synthetic examples with a simpler parameter space. 
+So we have only two Gaussian functions with two truncation rules, so it is like two TGS! 
+
+
+```{r}
+model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
+```
+```{r}
+library(mvtnorm)
+```
+
+
+```{r}
+
+# set of parameters 
+pe1=0.5
+pe2=1-pe1
+pe1d1=0.0
+pe2d1=0.3
+rv1=0.3
+rv2=1
+rhx1=40
+rhx2=10
+b1=0
+b2=0
+a=0.9
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+#thresholds
+q1=qnorm(pe1) # threshold for environment of deposition
+
+q2e1=q2e2=0 # two thresholds for diagenetic facies 
+Sigma = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+obj1=obj2=Inf
+for ( test in 1:100 ){
+  q2e1test = qnorm(test/100)
+  q2e2test = qnorm(test/100)
+  newobj1 =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2e1test),mean=c(0,0),sigma=Sigma)/pe1 - pe1d1) 
+  newobj2 =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q2e2test),mean=c(0,0),sigma=Sigma)/pe2 - pe2d1)
+  if (newobj1 < obj1){
+    q2e1= q2e1test
+    obj1 = newobj1
+  }
+  if (newobj2 < obj2){
+    q2e2= q2e2test
+    obj2 = newobj2
+  }
+}
+
+#transiograms
+te1d1=te2d1=te1d2=te2d2=rep(0,300)
+te1d1opp=te2d1opp=te1d2opp=te2d2opp=rep(0,300)
+Sigma = diag(1,3)
+Sigma[3,2]=Sigma[2,3]=a*rho1a
+Sigmaopp = Sigma
+
+for (i in 1:300){
+    d = i/100.
+    Sigma[1,2]=Sigma[2,1]= model(d,rv1,b1)
+    Sigma[1,3]=Sigma[3,1]=a*model(d+shift,rv1,b1)
+    
+    Sigmaopp[1,2]=Sigmaopp[2,1]= model(-d,rv1,b1)
+    Sigmaopp[1,3]=Sigmaopp[3,1]=a*model(-d+shift,rv1,b1)
+    
+    te1d1[i]=(pmvnorm(lower=c(-Inf,-Inf,-Inf),upper=c(q1,q1,q2e1),mean=c(0,0,0),sigma=Sigma) + pmvnorm(lower=c(-Inf,q1,-Inf),upper=c(q1,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe1
+    te2d1[i]=(pmvnorm(lower=c(q1,-Inf,-Inf),upper=c(Inf,q1,q2e1),mean=c(0,0,0),sigma=Sigma) + pmvnorm(lower=c(q1,q1,-Inf),upper=c(Inf,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe2
+    te1d2[i]=(pmvnorm(lower=c(-Inf,-Inf,q2e1),upper=c(q1,q1,Inf),mean=c(0,0,0),sigma=Sigma) + pmvnorm(lower=c(-Inf,q1,q2e2),upper=c(q1,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe1
+    te2d2[i]=(pmvnorm(lower=c(q1,-Inf,q2e1),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigma) + pmvnorm(lower=c(q1,q1,q2e2),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe2
+    
+    te1d1opp[i]=(pmvnorm(lower=c(-Inf,-Inf,-Inf),upper=c(q1,q1,q2e1),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(-Inf,q1,-Inf),upper=c(q1,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe1
+    te2d1opp[i]=(pmvnorm(lower=c(q1,-Inf,-Inf),upper=c(Inf,q1,q2e1),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(q1,q1,-Inf),upper=c(Inf,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe2
+    te1d2opp[i]=(pmvnorm(lower=c(-Inf,-Inf,q2e1),upper=c(q1,q1,Inf),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(-Inf,q1,q2e2),upper=c(q1,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe1
+    te2d2opp[i]=(pmvnorm(lower=c(q1,-Inf,q2e1),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(q1,q1,q2e2),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe2
+}
+
+z = (1:300)/100.
+par(mfrow=c(2,2))
+plot(z,te1d1,ylim=c(0.,1),type="l")
+plot(z,te1d2,ylim=c(0.,1),type="l")
+plot(z,te2d1,ylim=c(0.,1),type="l")
+plot(z,te2d2,ylim=c(0.,1.2),type="l")
+plot(z,te1d1opp,ylim=c(0.,1),type="l")
+plot(z,te1d2opp,ylim=c(0.,1),type="l")
+plot(z,te2d1opp,ylim=c(0.,1),type="l")
+plot(z,te2d2opp,ylim=c(0.,1.2),type="l")
+```
+
+lets do the simulation
+```{r}
+Y1<-sim2d(rv1,rhx1,b1,100,0.1,91,2,100)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.1,91,2,100)
+
+for( z in 2:90){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z-1]*a
+}
+
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1]=1
+faciesenv[Y1>q1 ]=2
+both<-faciesenv
+faciesdiag[]=2
+faciesdiag[Y1<q1 & Z2<q2e1 ]=1
+faciesdiag[Y1>q1 & Z2<q2e2 ]=1
+both[faciesdiag==1]=3
+image(faciesenv,col=c("white","grey"))
+#image(faciesdiag)
+image(both,col=c("white","grey","red"))
+```
+
+okay now that we hae studied some transiograms, the aim is to generate beautiful images with more facies
+
+```{r}
+
+pe1=0.4
+pe2=0.4
+pe3=0.2
+pe1d1=0.3
+pe2d1=0.3
+pe3d1=0.3
+rv1=0.3
+rv2=0.3
+rhx1=60
+rhx2=60
+b1=0
+b2=0
+a=0.8
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+q1a=qnorm(pe1) # threshold for environment of deposition
+q1b=qnorm(pe1+pe2)
+
+q2e1=q2e2=q2e3=0 # two thresholds for diagenetic facies 
+Sigma = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+obj1=obj2=obj3=Inf
+for ( test in 1:100 ){
+  q2e1test = qnorm(test/100)
+  q2e2test = qnorm(test/100)
+  q2e3test = qnorm(test/100)
+  newobj1 =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1a,q2e1test),mean=c(0,0),sigma=Sigma)/pe1 - pe1d1) 
+  newobj2 =abs( pmvnorm(lower=c(q1a,-Inf),upper=c(q1b,q2e2test),mean=c(0,0),sigma=Sigma)/pe2 - pe2d1)
+  newobj3 =abs( pmvnorm(lower=c(q1b,-Inf),upper=c(Inf,q2e3test),mean=c(0,0),sigma=Sigma)/pe3 - pe3d1)
+  if (newobj1 < obj1){
+    q2e1= q2e1test
+    obj1 = newobj1
+  }
+  if (newobj2 < obj2){
+    q2e2= q2e2test
+    obj2 = newobj2
+  }
+  if (newobj3 < obj3){
+    q2e3= q2e3test
+    obj3 = newobj3
+  }
+}
+
+Y1<-sim2d(rv1,rhx1,b1,100,0.05,91,1,100)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.05,91,1,100)
+
+for( z in 2:90){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z-1]*a
+}
+
+
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1a]=1
+faciesenv[Y1>q1a & Y1<q1b ]=2
+faciesenv[Y1>q1b ]=3
+combined<-faciesenv
+faciesdiag[]=2
+faciesdiag[Y1<q1a & Z2<q2e1 ]=1
+faciesdiag[Y1>q1a & Y1<q1b & Z2<q2e2 ]=1
+faciesdiag[Y1>q1b & Z2<q2e3 ]=1
+combined[faciesenv==1 & faciesdiag==1]=4
+combined[faciesenv==2 & faciesdiag==1]=5
+combined[faciesenv==3 & faciesdiag==1]=6
+image(faciesenv,col=c("ivory1","ivory3","ivory4"))
+image(combined,col=c("ivory1","ivory3","ivory4","gold","darkorange","firebrick"))
+```
+same facies here but with vertical anisotropy for some so that it looks like fracture related diagenesis
+```{r}
+pe1=0.4
+pe2=0.4
+pe3=0.2
+pe1d1=0.3
+pe2d1=0.3
+pe3d1=0.3
+rv1=0.3
+rv2=10
+rhx1=60
+rhx2=5
+b1=0
+b2=0
+a=0.8
+shift=0.1
+rho1a<-model(shift,rv1,b1)
+
+q1a=qnorm(pe1) # threshold for environment of deposition
+q1b=qnorm(pe1+pe2)
+
+q2e1=q2e2=q2e3=0 # two thresholds for diagenetic facies 
+Sigma = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+obj1=obj2=obj3=Inf
+for ( test in 1:100 ){
+  q2e1test = qnorm(test/100)
+  q2e2test = qnorm(test/100)
+  q2e3test = qnorm(test/100)
+  newobj1 =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1a,q2e1test),mean=c(0,0),sigma=Sigma)/pe1 - pe1d1) 
+  newobj2 =abs( pmvnorm(lower=c(q1a,-Inf),upper=c(q1b,q2e2test),mean=c(0,0),sigma=Sigma)/pe2 - pe2d1)
+  newobj3 =abs( pmvnorm(lower=c(q1b,-Inf),upper=c(Inf,q2e3test),mean=c(0,0),sigma=Sigma)/pe3 - pe3d1)
+  if (newobj1 < obj1){
+    q2e1= q2e1test
+    obj1 = newobj1
+  }
+  if (newobj2 < obj2){
+    q2e2= q2e2test
+    obj2 = newobj2
+  }
+  if (newobj3 < obj3){
+    q2e3= q2e3test
+    obj3 = newobj3
+  }
+}
+
+Y1<-sim2d(rv1,rhx1,b1,100,0.05,91,1,100)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.05,91,1,100)
+
+for( z in 2:90){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z-1]*a
+}
+
+
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1a]=1
+faciesenv[Y1>q1a & Y1<q1b ]=2
+faciesenv[Y1>q1b ]=3
+combined<-faciesenv
+faciesdiag[]=2
+faciesdiag[Y1<q1a & Z2<q2e1 ]=1
+faciesdiag[Y1>q1a & Y1<q1b & Z2<q2e2 ]=1
+faciesdiag[Y1>q1b & Z2<q2e3 ]=1
+combined[faciesenv==1 & faciesdiag==1]=4
+combined[faciesenv==2 & faciesdiag==1]=5
+combined[faciesenv==3 & faciesdiag==1]=6
+image(faciesenv,col=c("ivory1","ivory3","ivory4"))
+image(combined,col=c("ivory1","ivory3","ivory4","gold","darkorange","firebrick"))
+```
+
+in three dimensions
+```{r}
+Z1<-sim3d(r1v,r1l,r1l,0,100,0.1,50,5,50,5,50)
+Z2<-sim3d(r2v,r2l,r2l,0,100,0.1,50,5,50,5,50)
+Y2<-Z2
+for( z in 2:50){
+  Z2[,,z]=Y2[,,z]*sqrt(1-(a^2))+Z1[,,z-1]*a
+}
+faciesenv<-faciesdiag<-Z1
+faciesenv[Z1<q1a]=1
+faciesenv[Z1>q1a & Z1<q1b ]=2
+faciesenv[Z1>q1b ]=3
+combined<-faciesenv
+faciesdiag[]=2
+faciesdiag[Z1<q1a & Z2<q2e1 ]=1
+faciesdiag[Z1>q1a & Z1<q1b & Z2<q2e2 ]=1
+faciesdiag[Z1>q1b & Z2<q2e3 ]=1
+combined[faciesenv==1 & faciesdiag==1]=4
+combined[faciesenv==2 & faciesdiag==1]=5
+combined[faciesenv==3 & faciesdiag==1]=6
+
+for ( z in 1:50){
+  for ( y in 1:50){
+    for ( x in 1:50){
+      write(toString(c(combined[x,y,z])),"fracturecombined.csv",append=TRUE)
+    }
+  }
+}
+```
+
+
+
+okay, we are going to change slighlty the simulation. 
+We now do a pgs simulation for the environment of depositions so that we can have cyclicity. 
+And the diagenesis happens only in two of the facies intertidal and supratidal. 
+It might be better to visualize it like this. 
+
+```{r}
+pe1=0.34
+pe2=0.33
+pe3=0.34
+pe1d1=0.
+pe2d1=0.3
+pe3d1=0.4
+rv1=0.2
+rv2=0.2
+rv3=0.2
+rhx1=60
+rhx2=60
+rhx3=200
+b1=0
+b2=0
+b3=0
+a=0.99
+b=0.99
+shift=0.1
+shiftb=-0.1
+rho1a<-model(shift,rv1,b1)
+rho1b<-model(shiftb,rv1,b1)
+
+q1=qnorm(pe1) # subtidal facies defined by one Gaussian function
+
+# for intertidal and supratidal, second Gaussian function
+Sigma2 = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+q2=0 
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q2test),mean=c(0,0),sigma=Sigma2) - pe3 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+
+q3e1=-Inf
+q3e2=q3e3=0 # two thresholds for diagenetic facies 
+Sigma3 = diag(1,3)
+Sigma3[1,2]=Sigma3[2,1]=a*rho1a
+Sigma3[1,3]=Sigma3[3,1]=b*rho1b
+Sigma3[2,3]=Sigma3[3,2]=a*b*model(shift-shiftb,rv1,b1)
+
+obj1=obj2=obj3=Inf
+for ( test in 1:1000 ){
+  q3e2test = qnorm(test/1000)
+  q3e3test = qnorm(test/1000)
+  newobj2 =abs( pmvnorm(lower=c(q1,q2,-Inf),upper=c(Inf,Inf,q3e2test),mean=c(0,0,0),sigma=Sigma3)/pe2 - pe2d1)
+  newobj3 =abs( pmvnorm(lower=c(q1,-Inf,-Inf),upper=c(Inf,q2,q3e3test),mean=c(0,0,0),sigma=Sigma3)/pe3 - pe3d1)
+  if (newobj2 < obj2){
+    q3e2= q3e2test
+    obj2 = newobj2
+  }
+  if (newobj3 < obj3){
+    q3e3= q3e3test
+    obj3 = newobj3
+  }
+}
+
+# Te2de2 as if there is only one facies field, which means that I will have a matrix slightly bigger.
+# Z1(x)>q1 Z2(x)>q2 Z1(x+h)>q1 Z2(x+h)>q2 Z3(x+h)<q3e2 Z3(x)>q3e2
+# Which means we have a 6*6 matrix
+# 
+# Cov[Z3(x),Z1(x)]=cov[bZ1(x+beta),Z1(x)]
+# Cov[Z3(x),Z2(x)]=cov[bZ1(x+beta),aZ1(x+alpha)]
+# 
+# Cov[Z2(x),Z2(x+h)]=Cov[aZ1(x+alpha)+sqrt(1-a)Y2(x), aZ1(x+h+alpha)+sqrt(1-a)Y2(x+h)]
+
+
+# #transiograms
+te1de2=te2de2=te3de2=te1de3=te2de3=te3de3=rep(0,300)
+te1de2opp=te2de2opp=te3de2opp=te1de3opp=te2de3opp=te3de3opp=rep(0,300)
+Sigma = diag(1,6)
+Sigmaopp = diag(1,6)
+Sigma[1,2]=Sigma[2,1]=Sigma[3,4]=Sigma[4,3]=a*rho1a
+Sigma[3,5]=Sigma[5,3]=Sigma[1,6]=Sigma[6,1]=b*rho1b
+Sigma[4,5]=Sigma[5,4]=Sigma[2,6]=Sigma[6,2]=a*b*model(shiftb-shift,rv1,b1)
+
+Sigmaopp = Sigma
+for (i in 1:300){
+    d = i/100.
+    Sigma[1,3]=Sigma[3,1]= model(d,rv1,b1)
+    Sigma[1,4]=Sigma[4,1]=a*model(d+shift,rv1,b1)
+    Sigma[1,5]=Sigma[5,1]=b*model(d+shiftb,rv1,b1)
+    Sigma[2,3]=Sigma[3,2]=a*model(d-shift,rv1,b1)
+    Sigma[2,4]=Sigma[4,2]= (a^2)*model(d,rv1,b1)+sqrt(1-a^2)*model(d,rv2,b2)
+    Sigma[2,5]=Sigma[5,2]=a*b*model(d+shiftb-shift,rv1,b1)
+    
+    Sigma[3,6]=Sigma[6,3]=b*model(d-shiftb,rv1,b1)
+    Sigma[4,6]=Sigma[6,4]=a*b*model(d+shift-shiftb,rv1,b1)
+    Sigma[5,6]=Sigma[6,5]=(b^2)*model(d,rv1,b1)+sqrt(1-b^2)*model(d,rv3,b3)
+    
+    
+    Sigmaopp[1,3]=Sigmaopp[3,1]= model(-d,rv1,b1)
+    Sigmaopp[1,4]=Sigmaopp[4,1]=a*model(-d+shift,rv1,b1)
+    Sigmaopp[1,5]=Sigmaopp[5,1]=b*model(-d+shiftb,rv1,b1)
+    Sigmaopp[2,3]=Sigmaopp[3,2]=a*model(-d-shift,rv1,b1)
+    Sigmaopp[2,4]=Sigmaopp[4,2]= (a^2)*model(-d,rv1,b1)+sqrt(1-a^2)*model(-d,rv2,b2)
+    Sigmaopp[2,5]=Sigmaopp[5,2]=a*b*model(-d+shiftb-shift,rv1,b1)
+    
+    Sigmaopp[3,6]=Sigmaopp[6,3]=b*model(-d-shiftb,rv1,b1)
+    Sigmaopp[4,6]=Sigmaopp[6,4]=a*b*model(-d+shift-shiftb,rv1,b1)
+    Sigmaopp[5,6]=Sigmaopp[6,5]=(b^2)*model(-d,rv1,b1)+sqrt(1-b^2)*model(-d,rv3,b3)
+    
+    te1de2[i]=pmvnorm(lower=c(-Inf,-Inf,q1,q2,-Inf,-Inf),upper=c(q1,Inf,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe1
+    te2de2[i]=pmvnorm(lower=c(q1,q2,q1,q2,-Inf,q3e2),upper=c(Inf,Inf,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe2
+    te3de2[i]=pmvnorm(lower=c(q1,-Inf,q1,q2,-Inf,q3e3),upper=c(Inf,q2,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe3
+    
+    te1de3[i]=pmvnorm(lower=c(-Inf,-Inf,q1,-Inf,-Inf,-Inf),upper=c(q1,Inf,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe1
+    te2de3[i]=pmvnorm(lower=c(q1,q2,q1,-Inf,-Inf,q3e2),upper=c(Inf,Inf,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe2
+    te3de3[i]=pmvnorm(lower=c(q1,-Inf,q1,-Inf,-Inf,q3e3),upper=c(Inf,q2,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigma)/ pe3
+    
+    te1de2opp[i]=pmvnorm(lower=c(-Inf,-Inf,q1,q2,-Inf,-Inf),upper=c(q1,Inf,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe1
+    te2de2opp[i]=pmvnorm(lower=c(q1,q2,q1,q2,-Inf,q3e2),upper=c(Inf,Inf,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe2
+    te3de2opp[i]=pmvnorm(lower=c(q1,-Inf,q1,q2,-Inf,q3e3),upper=c(Inf,q2,Inf,Inf,q3e2,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe3
+    
+    te1de3opp[i]=pmvnorm(lower=c(-Inf,-Inf,q1,-Inf,-Inf,-Inf),upper=c(q1,Inf,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe1
+    te2de3opp[i]=pmvnorm(lower=c(q1,q2,q1,-Inf,-Inf,q3e2),upper=c(Inf,Inf,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe2
+    te3de3opp[i]=pmvnorm(lower=c(q1,-Inf,q1,-Inf,-Inf,q3e3),upper=c(Inf,q2,Inf,q2,q3e3,Inf),mean=c(0,0,0,0,0,0),sigma=Sigmaopp)/ pe3
+
+    # te1d1opp[i]=(pmvnorm(lower=c(-Inf,-Inf,-Inf),upper=c(q1,q1,q2e1),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(-Inf,q1,-Inf),upper=c(q1,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe1
+    # te2d1opp[i]=(pmvnorm(lower=c(q1,-Inf,-Inf),upper=c(Inf,q1,q2e1),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(q1,q1,-Inf),upper=c(Inf,Inf,q2e2),mean=c(0,0,0),sigma=Sigma))/ pe2
+    # te1d2opp[i]=(pmvnorm(lower=c(-Inf,-Inf,q2e1),upper=c(q1,q1,Inf),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(-Inf,q1,q2e2),upper=c(q1,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe1
+    # te2d2opp[i]=(pmvnorm(lower=c(q1,-Inf,q2e1),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmaopp) + pmvnorm(lower=c(q1,q1,q2e2),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigma))/ pe2
+}
+z = (1:300)/100.
+par(mfrow=c(2,3))
+plot(z,te1de2,ylim=c(0.,1),type="l")
+plot(z,te2de2,ylim=c(0.,1),type="l")
+plot(z,te3de2,ylim=c(0.,1),type="l")
+plot(z,te1de3,ylim=c(0.,1),type="l")
+plot(z,te2de3,ylim=c(0.,1),type="l")
+plot(z,te3de3,ylim=c(0.,1),type="l")
+
+z = (1:300)/100.
+par(mfrow=c(2,3))
+plot(z,te1de2opp,ylim=c(0.,1),type="l")
+plot(z,te2de2opp,ylim=c(0.,1),type="l")
+plot(z,te3de2opp,ylim=c(0.,1),type="l")
+plot(z,te1de3opp,ylim=c(0.,1),type="l")
+plot(z,te2de3opp,ylim=c(0.,1),type="l")
+plot(z,te3de3opp,ylim=c(0.,1),type="l")
+
+
+#simulation
+Y1<-sim2d(rv1,rhx1,b1,100,0.025,182,0.5,200)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.025,182,0.5,200)
+Z3<-Y3<-sim2d(rv3,rhx3,b3,100,0.025,182,0.5,200)
+for( z in 5:178){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z+4]*a
+}
+for( z in 5:178){
+  Z3[,z]=Y3[,z]*sqrt(1-(b^2))+Y1[,z-4]*b
+}
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1]=1
+faciesenv[Y1>q1 & Z2<q2 ]=3
+faciesenv[Y1>q1 & Z2>q2  ]=2
+combined<-faciesenv
+faciesdiag[]=2
+faciesdiag[Y1>q1 & Z2<q2 & Z3<q3e3 ]=1
+faciesdiag[Y1>q1 & Z2>q2 & Z3<q3e2 ]=1
+combined[faciesenv==2 & faciesdiag==1]=4
+combined[faciesenv==3 & faciesdiag==1]=5
+par(mfrow=c(1,1))
+image(faciesenv,col=c("ivory1","ivory3","ivory4"))
+image(combined,col=c("ivory1","ivory3","ivory4","gold","firebrick"),axes = FALSE)
+#image(combined,col=c("ivory1","ivory3","ivory4","gold"),axes = FALSE)
+#image(combined,col=c("ivory1","ivory3","ivory4","firebrick"),axes = FALSE)
+```
+Okay, we can do this simulation in three dimensions
+```{r}
+Y1<-sim3d(rv1,rhx1,rhx1,b1,100,0.025,182,0.5,200,5,10)
+Z2<-Y2<-sim3d(rv2,rhx2,rhx2,b2,100,0.025,182,0.5,200,5,10)
+Z3<-Y3<-sim3d(rv3,rhx3,rhx3,b3,100,0.025,182,0.5,200,5,10)
+for( z in 5:178){
+  Z2[,,z]=Y2[,,z]*sqrt(1-(a^2))+Y1[,,z+4]*a
+}
+for( z in 5:178){
+  Z3[,,z]=Y3[,,z]*sqrt(1-(b^2))+Y1[,,z-4]*b
+}
+
+```
+
+```{r}
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1]=1
+faciesenv[Y1>q1 & Z2<q2 ]=3
+faciesenv[Y1>q1 & Z2>q2  ]=2
+faciesenv[faciesenv==3 & Z3<q3e3]=4
+faciesenv[faciesenv==2 & Z3<q3e2]=5
+for ( z in 1:182){
+  for ( y in 1:10){
+    for ( x in 1:200){
+      write(toString(c(faciesenv[x,y,z])),"fracturecombined.csv",append=TRUE)
+    }
+  }
+}
+```
+
+
+here with vertical fractures dolomitized 
+```{r}
+pe1=0.34
+pe2=0.33
+pe3=0.34
+pe1d1=0.
+pe2d1=0.2
+pe3d1=0.4
+rv1=0.2
+rv2=0.2
+rv3=5
+rhx1=60
+rhx2=60
+rhx3=5
+b1=0
+b2=0
+b3=0
+a=0.99
+b=0.8
+shift=0.1
+shiftb=0.
+rho1a<-model(shift,rv1,b1)
+rho1b<-model(shiftb,rv1,b1)
+
+q1=qnorm(pe1) # subtidal facies defined by one Gaussian function
+
+# for intertidal and supratidal, second Gaussian function
+Sigma2 = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+q2=0 
+obj = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q2test),mean=c(0,0),sigma=Sigma2) - pe3 ) 
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+}
+
+q3e1=-Inf
+q3e2=q3e3=0 # two thresholds for diagenetic facies 
+Sigma3 = diag(1,3)
+Sigma3[1,2]=Sigma3[2,1]=a*rho1a
+Sigma3[1,3]=Sigma3[3,1]=b*rho1b
+Sigma3[2,3]=Sigma3[3,2]=a*b*model(shift-shiftb,rv1,b1)
+
+obj1=obj2=obj3=Inf
+for ( test in 1:1000 ){
+  q3e2test = qnorm(test/1000)
+  q3e3test = qnorm(test/1000)
+  newobj2 =abs( pmvnorm(lower=c(q1,q2,-Inf),upper=c(Inf,Inf,q3e2test),mean=c(0,0,0),sigma=Sigma3)/pe2 - pe2d1)
+  newobj3 =abs( pmvnorm(lower=c(q1,-Inf,-Inf),upper=c(Inf,q2,q3e3test),mean=c(0,0,0),sigma=Sigma3)/pe3 - pe3d1)
+  if (newobj2 < obj2){
+    q3e2= q3e2test
+    obj2 = newobj2
+  }
+  if (newobj3 < obj3){
+    q3e3= q3e3test
+    obj3 = newobj3
+  }
+}
+
+Y1<-sim2d(rv1,rhx1,b1,100,0.025,182,0.5,200)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.025,182,0.5,200)
+Z3<-Y3<-sim2d(rv3,rhx3,b3,100,0.025,182,0.5,200)
+for( z in 4:178){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z+4]*a
+}
+for( z in 4:178){
+  Z3[,z]=Y3[,z]*sqrt(1-(b^2))+Y1[,z]*b
+}
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1]=1
+faciesenv[Y1>q1 & Z2<q2 ]=3
+faciesenv[Y1>q1 & Z2>q2  ]=2
+combined<-faciesenv
+faciesdiag[]=2
+faciesdiag[Y1>q1 & Z2<q2 & Z3<q3e3 ]=1
+faciesdiag[Y1>q1 & Z2>q2 & Z3<q3e2 ]=1
+combined[faciesenv==2 & faciesdiag==1]=4
+combined[faciesenv==3 & faciesdiag==1]=5
+image(faciesenv,col=c("ivory1","ivory3","ivory4"))
+image(combined,col=c("ivory1","ivory3","ivory4","gold","firebrick"),axes = FALSE)
+```
+in three dimensions
+```{r}
+Y1<-sim3d(rv1,rhx1,rhx1,b1,100,0.025,182,0.5,200,5,10)
+Z2<-Y2<-sim3d(rv2,rhx2,rhx2,b2,100,0.025,182,0.5,200,5,10)
+Z3<-Y3<-sim3d(rv3,rhx3,rhx3,b3,100,0.025,182,0.5,200,5,10)
+for( z in 4:178){
+  Z2[,,z]=Y2[,,z]*sqrt(1-(a^2))+Y1[,,z+1]*a
+}
+for( z in 4:178){
+  Z3[,,z]=Y3[,,z]*sqrt(1-(b^2))+Y1[,,z]*b
+}
+
+```
+
+```{r}
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1]=1
+faciesenv[Y1>q1 & Z2<q2 ]=3
+faciesenv[Y1>q1 & Z2>q2  ]=2
+faciesenv[faciesenv==3 & Z3<q3e3]=4
+faciesenv[faciesenv==2 & Z3<q3e2]=5
+for ( z in 1:182){
+  for ( y in 1:10){
+    for ( x in 1:200){
+      write(toString(c(faciesenv[x,y,z])),"fracturecombined.csv",append=TRUE)
+    }
+  }
+}
+```
+
+
+new simulation with four facies with the first two Gaussian functions
+The fourth facies is marine cementation during transgression phase. This facies is the last of the cycle.
+The diagenesic facies is dolomite and just happen in the supratidal environment. 
+
+```{r}
+pe1=0.2
+pe2=0.2
+pe3=0.2
+pe4=0.2
+pe3d1=0.4
+rv1=0.2
+rv2=0.2
+rv3=0.2
+rhx1=60
+rhx2=60
+rhx3=60
+b1=0
+b2=0
+b3=0
+a=0.99
+b=0.
+shift=0.1
+shiftb=0.
+rho1a<-model(shift,rv1,b1)
+rho1b<-model(shiftb,rv1,b1)
+
+q1=qnorm(pe1+pe2) # subtidal facies defined by one Gaussian function
+
+# for intertidal and supratidal, second Gaussian function
+Sigma2 = matrix(c(1,a*rho1a,a*rho1a,1),2,2)
+q2=0
+q3=0
+obj=obj2 = Inf
+for ( test in 1:100 ){
+  q2test = qnorm(test/100)
+  q3test = qnorm(test/100)
+  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma2) - pe1 ) 
+  newobj2 =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma2) - pe4 )
+  if (newobj < obj){
+    q2 = q2test
+    obj = newobj
+  }
+  if (newobj2 < obj2){
+    q3 = q3test
+    obj2 = newobj2
+  }
+}
+
+q3e3=-Inf
+Sigma3 = diag(1,3)
+Sigma3[1,2]=Sigma3[2,1]=a*rho1a
+Sigma3[1,3]=Sigma3[3,1]=b*rho1b
+Sigma3[2,3]=Sigma3[3,2]=a*b*model(shift-shiftb,rv1,b1)
+
+obj3=Inf
+for ( test in 1:1000 ){
+  q3e3test = qnorm(test/1000)
+  newobj3 =abs( pmvnorm(lower=c(q1,q2,-Inf),upper=c(Inf,Inf,q3e3test),mean=c(0,0,0),sigma=Sigma3)/pe3 - pe3d1)
+
+  if (newobj3 < obj3){
+    q3e3= q3e3test
+    obj3 = newobj3
+  }
+}
+
+#simulation
+Y1<-sim2d(rv1,rhx1,b1,100,0.025,182,0.5,200)
+Z2<-Y2<-sim2d(rv2,rhx2,b2,100,0.025,182,0.5,200)
+Z3<-Y3<-sim2d(rv3,rhx3,b3,100,0.025,182,0.5,200)
+for( z in 4:178){
+  Z2[,z]=Y2[,z]*sqrt(1-(a^2))+Y1[,z+4]*a
+}
+for( z in 4:178){
+  Z3[,z]=Y3[,z]*sqrt(1-(b^2))+Y1[,z]*b
+}
+faciesenv<-faciesdiag<-Y1
+faciesenv[Y1<q1 & Z2<q2]=1
+faciesenv[Y1<q1 & Z2>q2]=2
+faciesenv[Y1>q1 & Z2>q3]=3
+faciesenv[Y1>q1 & Z2<q3]=4
+
+combined<-faciesenv
+combined[faciesenv==3 & Z3<q3e3]=5
+image(faciesenv,col=c("ivory1","ivory3","ivory4"))
+image(combined,col=c("ivory1","ivory3","ivory4","cyan3","firebrick"),axes = FALSE)
+```
