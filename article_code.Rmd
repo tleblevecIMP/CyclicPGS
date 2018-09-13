@@ -16,9 +16,11 @@ mvtnorm compute integral over Gaussian densities
 library(mvtnorm)
 library(abind)
 ```
-
-
+Getting the facies logs and transforming them into indicator variables
 ```{r}
+env_lat<-data.matrix(read.table("depo_latemar.txt"))
+diag_lat<-data.matrix(read.table("diag_latemar.txt"))
+nz=nrow(env_lat)
 e1<-e2<-e3<-e4<-d1<-d2<-d3<-matrix(0,nz,4)
 e1[env_lat==1]=1
 e2[env_lat==2]=1
@@ -30,6 +32,8 @@ d3[diag_lat==3]=1
 e1[is.na(env_lat)]=e2[is.na(env_lat)]=e3[is.na(env_lat)]=e4[is.na(env_lat)]=NA
 d1[is.na(diag_lat)]=d2[is.na(diag_lat)]=d3[is.na(diag_lat)]=NA
 ```
+Computing proportions of the different facies in the logs
+
 ```{r}
 pe1 = mean(e1,na.rm=TRUE)
 pe2 = mean(e2,na.rm=TRUE)
@@ -58,7 +62,9 @@ pd3e4=mean(d3*e4,na.rm=TRUE)/pe4
 matrix(c(pd1e1,pd1e2,pd1e3,pd1e4,pd2e1,pd2e2,pd2e3,pd2e4,pd3e1,pd3e2,pd3e3,pd3e4),3,4,byrow=TRUE)
 pe1+pe2+pe3+pe4
 ```
+Building the grids for the Earth models 
 
+Because there are two fields: depositional and diagenetic, there are two grids
 
 ```{r}
 env_lat[is.na(env_lat)]=0 # with 0, the gibbs sampler will find random values
@@ -74,9 +80,9 @@ grid_co[35,3,]<-diag_lat[,3]
 grid_co[95,7,]<-diag_lat[,4]
 
 ```
-ok we also want to display an image with all the logs
-we are doubling the wells for a better visualization
+displaying an image with all the logs
 ```{r}
+# we are doubling the logs for a better visualization
 im<-matrix(NA,100,91)
 im[5,]<-env_lat[,1]
 im[4,]<-env_lat[,1]
@@ -93,7 +99,7 @@ print image
 png(file="logslate.png",width=4000,height = 2500,res=300,antialias = )
 image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
 ```
-we also want to display the environment of depositions and the diagenesis
+Another image the environment of depositions and the diagenesis logs
 ```{r}
 im<-matrix(NA,100,91)
 im[5,]<-diag_lat[,1]+4
@@ -114,6 +120,7 @@ im[98,]<-env_lat[,4]
 im[97,]<-env_lat[,4]
 image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red","black","grey","yellow"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
 ```
+print image
 ```{r}
 png(file="logslatediag2.png",width=4000,height = 2500,res=300,antialias = )
 image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red","black","grey","yellow"),ylab="Vertical distance (m)",xlab = "Lateral distance (m)")
@@ -269,13 +276,6 @@ for ( z in 1:91){
 ```
 another simu with only three Gaussian functions
 (verifier le gibbs sampling pour la nouvelle truncation rule)
-
-```{r}
-library(mvtnorm)
-```
-```{r}
-source("co_sim_condi.R")
-```
 
 
 ```{r}
