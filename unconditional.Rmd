@@ -3,7 +3,7 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-Unconditional simulation of prograding islands. 
+# Unconditional simulation of prograding islands. 
 
 ```{r}
 library(mvtnorm)
