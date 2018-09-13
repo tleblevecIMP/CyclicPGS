@@ -10,6 +10,7 @@ source("C:/Users/tl3315/Dropbox/coding/cosimulation/co_sim_condi.R")
 source("C:/Users/tl3315/Dropbox/coding/cosimulation/cosim_functions.R")
 ```
 Two libraries used that you first need to install with R
+
 mvtnorm compute integral over Gaussian densities
 ```{r}
 library(mvtnorm)
