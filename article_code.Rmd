@@ -5,6 +5,7 @@ output: html_notebook
 
 # the project is in Dropbox/coding/cosimulation
 
+loading the functions, replace with the location of your files
 ```{r}
 source("C:/Users/tl3315/Dropbox/coding/cosimulation/co_sim_condi.R")
 source("C:/Users/tl3315/Dropbox/coding/cosimulation/cosim_functions.R")
