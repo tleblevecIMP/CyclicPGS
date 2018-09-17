@@ -152,8 +152,6 @@ for (j in 1:182){
 par(bg="transparent")
 rv1=0.3
 rv2=1.2
-rhx1=rhy1=800
-rhx2=rhy2=800
 b1=0
 b2=5
 rho=0.6
@@ -162,12 +160,8 @@ rho1a<-model(shift,rv1,b1)
 warning(rho>rho1a)
 alpha1=(rho/rho1a)^2
 alpha2=1-(rho/rho1a)^2
-rv3=0.2
-rv4=0.3
-rhx3=rhy3=800
-rhx4=rhy4=800
-b3=0
-b4=0
+rv3=rv4=0.2
+b3=b4=0
 e=-0.8
 f=-0.5
 a14=-0.1
@@ -175,7 +169,13 @@ a24=0.1
 rho1a14 = model(a14,rv1,b1)
 rho2a24=model(a24,rv2,b2)
 
-#thresholds
+# The lateral ranges are defined by checking the lateral extension of the facies on the realizations
+rhx1=rhy1=800
+rhx2=rhy2=800
+rhx3=rhy3=800
+rhx4=rhy4=800
+
+# thresholds of environment of deposition
 q1=qnorm(pe1+pe2)
 Sigma1 = matrix(c(1,rho,rho,1),2,2)
 q2=0
@@ -200,6 +200,7 @@ for ( test in 1:100 ){
 }
 c(q1,q2,q3)
 
+# thresholds for diagenesis
 Sigmad = diag(1,3)
 qd2e2=0
 qd2e3=0
@@ -238,9 +239,9 @@ c(qd1e4,qd2e2,qd2e3)
 # Therefore Y3 is here not meaningful 
 Y1<-sim3d(rv1,rhx1,rhy1,b1,100,0.05,182,10,100,25,10)
 Y2<-sim3d(rv2,rhx2,rhy2,b2,100,0.05,182,10,100,25,10)
-Y3<-sim3d(rv3,rhx3,rhy3,b3,100,0.05,182,10,100,25,10)
-Y4<-sim3d(rv4,rhx4,rhy4,b4,100,0.05,182,10,100,25,10)
+Y4=Y3<-sim3d(rv3,rhx3,rhy3,b3,100,0.05,182,10,100,25,10)
 
+# Unconditional simulation at log location with Gibbs Sampling
 simwell<-gibbs_sampling3d(grid2,grid_co2,c(q1,q2,q3),c(qd1e4,qd2e2,qd2e3),0.05,10,25,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(rhy1,rhy2,rhy3,rhy4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1),f*model(a24,rv2,b2)),c(shift,a14,a24),50)
 Y1well<-simwell[,,1:182]
 Y2well<-Z2well<-simwell[,,183:364]
@@ -455,7 +456,7 @@ for ( z in 1:91){
   }
 }
 ```
-let s compute the embedded transitions of one realization
+computing the embedded transitions of one realization
 ```{r}
 i1real<-i2real<-i3real<-i4real<-faciesenv
 i1real[faciesenv!=1]=0
