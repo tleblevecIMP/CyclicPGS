@@ -1,0 +1,1159 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+facies1=distal lower shoreface heteroliths & offshore mudstones
+facies2=proximal lower shoreface sandstones
+facies3=foreshore & upper shoreface sandstones
+
+This case study is not stationary so we are importing functions
+redefined in a non stationary case
+```{r}
+source("nonstation_functions.R")
+```
+```{r}
+library(mvtnorm)
+```
+
+```{r}
+i1=i2=i3=env_lat<-data.matrix(read.table("envclastic.txt"))
+i1[env_lat!=1]=0
+i2[env_lat==2]=1
+i2[env_lat!=2]=0
+i3[env_lat==3]=1
+i3[env_lat!=3]=0
+p1=mean(i1,na.rm=TRUE)
+p2=mean(i2,na.rm=TRUE)
+p3=mean(i3,na.rm=TRUE)
+c(p1,p2,p3)
+image(t(env_lat),col=c("blue","green","red"))
+```
+
+
+```{r}
+par(mfrow=c(3,3))
+t11exp=tr_2d_vert(i1,i1,200,566,56.6)
+t12exp=tr_2d_vert(i1,i2,200,566,56.6)
+t13exp=tr_2d_vert(i1,i3,200,566,56.6)
+t21exp=tr_2d_vert(i2,i1,200,566,56.6)
+t22exp=tr_2d_vert(i2,i2,200,566,56.6)
+t23exp=tr_2d_vert(i2,i3,200,566,56.6)
+t31exp=tr_2d_vert(i3,i1,200,566,56.6)
+t32exp=tr_2d_vert(i3,i2,200,566,56.6)
+t33exp=tr_2d_vert(i3,i3,200,566,56.6)
+```
+
+okay, if we want to fit these transiograms, we need to implement non stationarity
+therefore, we need to compute the proportion on each horizontal 
+```{r}
+prop1=prop2=prop3=numeric(nrow(env_lat))
+for (i in 1:nrow(env_lat)){
+  prop1[i]=mean(i1[i,],na.rm=TRUE)
+  prop2[i]=mean(i2[i,],na.rm=TRUE)
+  prop3[i]=mean(i3[i,],na.rm=TRUE)
+}
+plot(1:nrow(i1),prop1,type = "l")
+plot(1:nrow(i1),prop2,type = "l")
+plot(1:nrow(i1),prop3,type = "l")
+```
+ok we are trying to smooth the curves with moving average
+```{r}
+f50=rep(1/50,50)
+prop1filter<-filter(prop1,f50,sides=2)
+prop1filter[542:566]=prop1[542:566]
+prop1filter[1:24]=prop1[1:24]
+plot(1:nrow(i1),prop1filter,type = "l")
+#prop2filter<-filter(prop2,f50,sides=2)
+#prop2filter[542:566]=prop2[542:566]
+#prop2filter[1:24]=prop2[1:24]
+#plot(1:nrow(i1),prop2filter,type = "l")
+prop3filter<-filter(prop3,f50,sides=2)
+prop3filter[542:566]=prop3[542:566]
+prop3filter[1:24]=prop3[1:24]
+plot(1:nrow(i1),prop3filter,type = "l")
+prop2filter=1-prop1filter-prop3filter
+plot(1:nrow(i1),prop2filter,type = "l")
+#prop1filter+prop2filter+prop3filter
+```
+we want to plot an image with those curves
+```{r}
+png(file="PCvert.png",width=2000,height = 800,res=300,antialias = )
+par(mar=c(0,0,0,0))
+n=nrow(i1)
+plot(1:n,prop2filter+prop3filter,type="l",axes=FALSE,ann=FALSE)
+lines(1:n,prop3filter)
+lines(1:n,rep(1,n))
+lines(1:n,rep(0,n))
+```
+
+
+ok now we need to compute the theoretical transiograms with the accurate proportions
+this is not good because the global proportions also depend on the horizontal PC
+```{r}
+rv1=5
+rv2=5
+b1=0
+b2=0
+rho=0
+n=nrow(i1)
+# ok so the thresolds depends on the z, we have a vector
+q1=q2=numeric(n)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+for (z in 1:n){
+  q1[z]=qnorm(prop1filter[z])
+  obj=Inf
+  for(test in 1:100){
+    q2test = qnorm(test/100)
+    newobj =abs( pmvnorm(lower=c(q1[z],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - prop2filter[z] ) 
+    if (newobj < obj){
+    q2[z] = q2test
+    obj = newobj
+    }
+  }
+}
+```
+```{r}
+model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
+```
+
+transiograms now only with vertical proportion curves
+```{r}
+x = (1:200)/10.
+t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=rep(0,200)
+Sigma = diag(1,4)
+for (i in 1:200){
+    t1=t2=t3=0
+    d = i/100.
+    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
+    for (z in 1:(n-i)){
+      if (prop1filter[z]!=0){
+        t11_model[i]=t11_model[i]+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z],Inf,q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]
+        t12_model[i]=t12_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i],q2[z+i]),upper=c(q1[z],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]  
+        t13_model[i]=t13_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i],-Inf),upper=c(q1[z],Inf,Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]
+        t1= t1+1
+      }
+       
+      if(prop2filter[z]!=0){
+        t21_model[i]=t21_model[i]+pmvnorm(lower=c(q1[z],q2[z],-Inf,-Inf),upper=c(Inf,Inf,q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
+        t22_model[i]=t22_model[i]+pmvnorm(lower=c(q1[z],q2[z],q1[z+i],q2[z+i]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
+        t23_model[i]=t23_model[i]+pmvnorm(lower=c(q1[z],q2[z],q1[z+i],-Inf),upper=c(Inf,Inf,Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
+        t2=t2+1
+      }
+       
+      if(prop3filter[z]!=0){
+        t31_model[i]=t31_model[i]+pmvnorm(lower=c(q1[z],-Inf,-Inf,-Inf),upper=c(Inf,q2[z],q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
+        t32_model[i]=t32_model[i]+pmvnorm(lower=c(q1[z],-Inf,q1[z+i],q2[z+i]),upper=c(Inf,q2[z],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
+        t33_model[i]=t33_model[i]+pmvnorm(lower=c(q1[z],-Inf,q1[z+i],-Inf),upper=c(Inf,q2[z],Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
+        t3=t3+1
+      }
+       
+    }
+    t11_model[i]=t11_model[i]/t1
+    t12_model[i]=t12_model[i]/t1
+    t13_model[i]=t13_model[i]/t1
+    t21_model[i]=t21_model[i]/t2
+    t22_model[i]=t22_model[i]/t2
+    t23_model[i]=t23_model[i]/t2
+    t31_model[i]=t31_model[i]/t3
+    t32_model[i]=t32_model[i]/t3
+    t33_model[i]=t33_model[i]/t3
+    
+}
+
+par(mfrow=c(3,3))
+plot(x,t11exp,type="l",ylim=c(0,1))
+lines(x,t11_model,lwd=2)
+plot(x,t12exp,type="l",ylim=c(0,1))
+lines(x,t12_model,lwd=2)
+plot(x,t13exp,type="l",ylim=c(0,1))
+lines(x,t13_model,lwd=2)
+plot(x,t21exp,type="l",ylim=c(0,1))
+lines(x,t21_model,lwd=2)
+plot(x,t22exp,type="l",ylim=c(0,1))
+lines(x,t22_model,lwd=2)
+plot(x,t23exp,type="l",ylim=c(0,1))
+lines(x,t23_model,lwd=2)
+plot(x,t31exp,type="l",ylim=c(0,1))
+lines(x,t31_model,lwd=2)
+plot(x,t32exp,type="l",ylim=c(0,1))
+lines(x,t32_model,lwd=2)
+plot(x,t33exp,type="l",ylim=c(0,1))
+lines(x,t33_model,lwd=2)
+```
+
+
+
+The transiograms are still not perfect, we need to also put a lateral non stationarity
+
+okay, if we want to fit these transiograms, we need to implement non stationarity
+therefore, we need to compute the proportion on each horizontal 
+```{r}
+prop1lat=prop2lat=prop3lat=numeric(ncol(env_lat))
+for (i in 1:ncol(env_lat)){
+  prop1lat[i]=mean(i1[,i],na.rm=TRUE)
+  prop2lat[i]=mean(i2[,i],na.rm=TRUE)
+  prop3lat[i]=mean(i3[,i],na.rm=TRUE)
+}
+plot(1:ncol(i1),prop1lat,type = "p")
+plot(1:ncol(i1),prop2lat,type = "p")
+plot(1:ncol(i1),prop3lat,type = "p")
+```
+now doing a good figure
+```{r}
+png(file="PChor.png",width=2000,height = 800,res=300,antialias = )
+par(mar=c(0,0,0,0))
+n=ncol(i1)
+plot(1:n,prop2lat+prop3lat,type="p",axes=FALSE,ann=FALSE,ylim=c(0,1))
+lines(1:n,prop3lat,type="p")
+lines(1:n,rep(1,n))
+lines(1:n,rep(0,n))
+```
+
+
+we are now doing the mean of the lateral and vertical proportion curves
+```{r}
+prop1mat=prop2mat=prop3mat=matrix(0,nrow=nrow(env_lat),ncol=ncol(env_lat))
+for ( i in 1:nrow(env_lat)){
+  for (j in 1:ncol(env_lat)){
+    prop1mat[i,j]=(prop1filter[i]+prop1lat[j])/2
+    prop2mat[i,j]=(prop2filter[i]+prop2lat[j])/2
+    #prop3mat[i,j]=(prop3filter[i]+prop3lat[j])/2
+  }
+}
+prop3mat=1-prop2mat-prop1mat
+prop3mat[prop3mat<0]=0
+image(prop1mat)
+image(prop2mat)
+image(prop3mat)
+```
+thresholds this one need to be the same that on the whole grid
+
+```{r}
+#this one is not precise enough
+n=nrow(i1)
+m=ncol(i1)
+q1=q2=matrix(0,n,m)
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+for (z in 1:n){
+  for(x in 1:m){
+    q1[z,x]=qnorm(prop1mat[z,x])
+    obj=Inf
+    for(test in 1:10){
+      q2test = qnorm(test/10)
+      newobj =abs( pmvnorm(lower=c(q1[z,x],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - prop2mat[z,x] ) 
+      if (newobj < obj){
+      q2[z,x] = q2test
+      obj = newobj
+      }
+    }
+  }
+}
+```
+we implement an analytic way to compute the thresholds
+```{r}
+n=nrow(i1)
+m=ncol(i1)
+q1=q2=matrix(0,n,m)
+for (z in 1:n){
+  for(x in 1:m){
+      q1[z,x]=qnorm(prop1mat[z,x])
+      if (prop3mat[z,x]!=0) {
+      q2[z,x]=qnorm(1-(prop2mat[z,x]/(1-prop1mat[z,x])))
+      }
+      else{q2[z,x]=-Inf}
+  }
+}
+```
+
+
+the transios now with vertical and horizontal proportion curves
+```{r}
+rv1=0.5
+rv2=0.5
+b1=0
+b2=0
+rho=0
+n=nrow(i1)
+m=ncol(i1)
+d = (1:200)/10.
+t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=rep(0,200)
+Sigma = diag(1,4)
+for (i in 1:200){
+    t1=t2=t3=0
+    d = i/100.
+    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
+    for (z in 1:(n-i)){
+      for ( x in 1:m){
+        if (prop1mat[z,x]!=0){
+          t11_model[i]=t11_model[i]+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z,x],Inf,q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
+          t12_model[i]=t12_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i,x],q2[z+i,x]),upper=c(q1[z,x],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]  
+          t13_model[i]=t13_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i,x],-Inf),upper=c(q1[z,x],Inf,Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
+          t1= t1+1
+        }
+         
+        if(prop2mat[z,x]!=0){
+          t21_model[i]=t21_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],-Inf,-Inf),upper=c(Inf,Inf,q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t22_model[i]=t22_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+i,x],q2[z+i,x]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t23_model[i]=t23_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+i,x],-Inf),upper=c(Inf,Inf,Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t2=t2+1
+        }
+         
+        if(prop3mat[z,x]!=0){
+          t31_model[i]=t31_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,-Inf,-Inf),upper=c(Inf,q2[z,x],q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t32_model[i]=t32_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+i,x],q2[z+i,x]),upper=c(Inf,q2[z,x],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t33_model[i]=t33_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+i,x],-Inf),upper=c(Inf,q2[z,x],Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t3=t3+1
+        }
+      }
+      
+       
+    }
+    t11_model[i]=t11_model[i]/t1
+    t12_model[i]=t12_model[i]/t1
+    t13_model[i]=t13_model[i]/t1
+    t21_model[i]=t21_model[i]/t2
+    t22_model[i]=t22_model[i]/t2
+    t23_model[i]=t23_model[i]/t2
+    t31_model[i]=t31_model[i]/t3
+    t32_model[i]=t32_model[i]/t3
+    t33_model[i]=t33_model[i]/t3
+    
+}
+d = (1:200)/10.
+par(mfrow=c(3,3))
+plot(d,t11exp,type="l",ylim=c(0,1))
+lines(d,t11_model,lwd=2)
+plot(d,t12exp,type="l",ylim=c(0,1))
+lines(d,t12_model,lwd=2)
+plot(d,t13exp,type="l",ylim=c(0,1))
+lines(d,t13_model,lwd=2)
+plot(d,t21exp,type="l",ylim=c(0,1))
+lines(d,t21_model,lwd=2)
+plot(d,t22exp,type="l",ylim=c(0,1))
+lines(d,t22_model,lwd=2)
+plot(d,t23exp,type="l",ylim=c(0,1))
+lines(d,t23_model,lwd=2)
+plot(d,t31exp,type="l",ylim=c(0,1))
+lines(d,t31_model,lwd=2)
+plot(d,t32exp,type="l",ylim=c(0,1))
+lines(d,t32_model,lwd=2)
+plot(d,t33exp,type="l",ylim=c(0,1))
+lines(d,t33_model,lwd=2)
+```
+After discussion, it is more interesting to only look at the transition rates between facies.
+In that case, it is not necessary to take into account the non stationary proportions
+
+```{r}
+q1g=qnorm(p1)
+q2g=qnorm(1-(p2/(1-p1)))
+```
+
+```{r}
+rv1=0.6
+rv2=0.7
+Sigma = diag(1,4)
+d = 1/10
+Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
+Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
+Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
+r11_model=(1-pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1g,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p1)
+r12_model=pmvnorm(lower=c(-Inf,-Inf,q1g,q2g),upper=c(q1g,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/(p1)
+r13_model=pmvnorm(lower=c(-Inf,-Inf,q1g,-Inf),upper=c(q1g,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p1
+r21_model=pmvnorm(lower=c(q1g,q2g,-Inf,-Inf),upper=c(Inf,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2
+r22_model=(1-pmvnorm(lower=c(q1g,q2g,q1g,q2g),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2)
+r23_model=pmvnorm(lower=c(q1g,q2g,q1g,-Inf),upper=c(Inf,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p2
+r31_model=pmvnorm(lower=c(q1g,-Inf,-Inf,-Inf),upper=c(Inf,q2g,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
+r32_model=pmvnorm(lower=c(q1g,-Inf,q1g,q2g),upper=c(Inf,q2g,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
+r33_model=(1-pmvnorm(lower=c(q1g,-Inf,q1g,-Inf),upper=c(Inf,q2g,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p3)
+matrix(c(0,r12_model/r11_model,r13_model/r11_model,r21_model/r22_model,0,r23_model/r22_model,r31_model/r33_model,r32_model/r33_model,0),3,3,byrow=TRUE)
+
+
+```
+lets see what the thicknesses are
+```{r}
+(1/r11_model)*0.1
+(1/r22_model)*0.1
+(1/r33_model)*0.1
+```
+
+
+```{r}
+r11exp=-(1-t11exp[1])/0.1
+r12exp=t12exp[1]/0.1
+r13exp=t13exp[1]/0.1
+r21exp=t21exp[1]/0.1
+r22exp=-(1-t22exp[1])/0.1
+r23exp=t23exp[1]/0.1
+r31exp=t31exp[1]/0.1
+r32exp=t32exp[1]/0.1
+r33exp=-(1-t33exp[1])/0.1
+matrix(c(r11exp,r12exp,r13exp,r21exp,r22exp,r23exp,r31exp,r32exp,r33exp),3,3)
+```
+and mean thicknesses
+```{r}
+-(1/r11exp)*0.1
+-(1/r22exp)*0.1
+-(1/r33exp)*0.1
+```
+
+
+I finally think that we cannot suppose stationnarity even for the transition rates. 
+Therefore I will compute them in the case of non stationarity
+```{r}
+rv1=5
+rv2=5
+b1=0
+b2=0
+rho=0
+n=nrow(i1)
+m=ncol(i1)
+
+t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=0
+Sigma = diag(1,4)
+  t1=t2=t3=0
+    d = 1/10.
+    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
+    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
+    for (z in 1:(n-1)){
+      for ( x in 1:m){
+        if (prop1mat[z,x]!=0){
+          t11_model=t11_model+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z,x],Inf,q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
+          t12_model=t12_model+pmvnorm(lower=c(-Inf,-Inf,q1[z+1,x],q2[z+1,x]),upper=c(q1[z,x],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]  
+          t13_model=t13_model+pmvnorm(lower=c(-Inf,-Inf,q1[z+1,x],-Inf),upper=c(q1[z,x],Inf,Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
+          t1= t1+1
+        }
+         
+        if(prop2mat[z,x]!=0){
+          t21_model=t21_model+pmvnorm(lower=c(q1[z,x],q2[z,x],-Inf,-Inf),upper=c(Inf,Inf,q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t22_model=t22_model+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+1,x],q2[z+1,x]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t23_model=t23_model+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+1,x],-Inf),upper=c(Inf,Inf,Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
+          t2=t2+1
+        }
+         
+        if(prop3mat[z,x]!=0){
+          t31_model=t31_model+pmvnorm(lower=c(q1[z,x],-Inf,-Inf,-Inf),upper=c(Inf,q2[z,x],q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t32_model=t32_model+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+1,x],q2[z+1,x]),upper=c(Inf,q2[z,x],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t33_model=t33_model+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+1,x],-Inf),upper=c(Inf,q2[z,x],Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
+          t3=t3+1
+        }
+      }
+      
+       
+    }
+    t11_model=(1-t11_model/t1)*100
+    t12_model=(t12_model/t1)*100
+    t13_model=(t13_model/t1)*100
+    t21_model=(t21_model/t2)*100
+    t22_model=(1-t22_model/t2)*100
+    t23_model=(t23_model/t2)*100
+    t31_model=(t31_model/t3)*100
+    t32_model=(t32_model/t3)*100
+    t33_model=(1-t33_model/t3)*100
+    
+matrix(c(0,t12_model/t11_model,t13_model/t11_model,t21_model/t22_model,0,t23_model/t22_model,t31_model/t33_model,t32_model/t33_model,0),3,3,byrow=TRUE)    
+```
+
+
+okay now we create a grid (3d) to simulate the facies 
+we will see if the transiograms really matter
+
+```{r}
+grid<-array(NA,c(100,1,566))
+grid[5,1,]<-env_lat[,1]
+grid[15,1,]<-env_lat[,2]
+grid[25,1,]<-env_lat[,3]
+grid[35,1,]<-env_lat[,4]
+grid[45,1,]<-env_lat[,5]
+grid[55,1,]<-env_lat[,6]
+grid[65,1,]<-env_lat[,7]
+grid[75,1,]<-env_lat[,8]
+grid[85,1,]<-env_lat[,9]
+image(grid[,1,],col=c("blue","green","red"))
+
+```
+
+we are printing in a file 
+```{r}
+im<-array(NA,c(100,1,566))
+im[5,1,]<-env_lat[,1]
+im[6,1,]<-env_lat[,1]
+im[15,1,]<-env_lat[,2]
+im[16,1,]<-env_lat[,2]
+im[25,1,]<-env_lat[,3]
+im[26,1,]<-env_lat[,3]
+im[35,1,]<-env_lat[,4]
+im[36,1,]<-env_lat[,4]
+im[45,1,]<-env_lat[,5]
+im[46,1,]<-env_lat[,5]
+im[55,1,]<-env_lat[,6]
+im[56,1,]<-env_lat[,6]
+im[65,1,]<-env_lat[,7]
+im[66,1,]<-env_lat[,7]
+im[75,1,]<-env_lat[,8]
+im[76,1,]<-env_lat[,8]
+im[85,1,]<-env_lat[,9]
+im[86,1,]<-env_lat[,9]
+image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+png(file="logsutah.png",width=4000,height = 2500,res=300,antialias = )
+image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+```
+
+we also need to put the proportions on a grid
+```{r}
+gridprop1<-gridprop2<-array(NA,c(100,2,566))
+gridprop1[5,1,]<-prop1mat[,1]
+gridprop1[15,1,]<-prop1mat[,2]
+gridprop1[25,1,]<-prop1mat[,3]
+gridprop1[35,1,]<-prop1mat[,4]
+gridprop1[45,2,]<-prop1mat[,5]
+gridprop1[55,1,]<-prop1mat[,6]
+gridprop1[65,1,]<-prop1mat[,7]
+gridprop1[75,1,]<-prop1mat[,8]
+gridprop1[99,1,]<-prop1mat[,9]
+#gridprop1[is.na(grid)]=NA
+gridprop2[5,1,]<-prop2mat[,1]
+gridprop2[15,1,]<-prop2mat[,2]
+gridprop2[25,1,]<-prop2mat[,3]
+gridprop2[35,1,]<-prop2mat[,4]
+gridprop2[45,2,]<-prop2mat[,5]
+gridprop2[55,1,]<-prop2mat[,6]
+gridprop2[65,1,]<-prop2mat[,7]
+gridprop2[75,1,]<-prop2mat[,8]
+gridprop2[99,1,]<-prop2mat[,9]
+#gridprop2[is.na(grid)]=NA
+gridprop3=1-gridprop1-gridprop2
+image(gridprop1[,1,])
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
+image(gridprop2[,1,])
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
+image(gridprop3[,1,])
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
+```
+okay, now we need to do a kriging to interpolate these proportions
+```{r}
+source("functions.R")
+```
+we need first to untrend the global proportion of each facies to perform the kriging
+```{r}
+gridprop1=gridprop1-p1
+gridprop2=gridprop2-p2
+```
+
+```{r}
+gridprop1krig<-prop_kriging(gridprop1,500,20,20,0.1)
+gridprop2krig<-prop_kriging(gridprop2,500,20,20,0.1)
+#now we need to retrend the results
+gridprop1krig=gridprop1krig+p1
+gridprop2krig=gridprop2krig+p2
+err=1-gridprop1krig-gridprop2krig
+for (x in 1:n[1]){
+  for(y in 1:n[2]){
+    for( z in 1:n[3]){
+      if (err[x,y,z]<0){
+        gridprop1krig[x,y,z]=gridprop1krig[x,y,z]+err[x,y,z]
+      }
+    }
+  }
+}
+
+image(gridprop1krig[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(300)[c(1, 200,300)], xpd = NA)
+image(gridprop2krig[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(300)[c(1, 200,300)], xpd = NA)
+gridprop3krig<-1-gridprop2krig-gridprop1krig
+image(gridprop3krig[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("0",".5","1"), fill = heat.colors(300)[c(1 , 200,300)], xpd = NA)
+```
+```{r}
+gridprop1krig[gridprop1krig>1]
+gridprop2krig[gridprop2krig>1]
+gridprop1krig[gridprop1krig<0]
+gridprop2krig[gridprop2krig<0]
+```
+
+
+```{r}
+library(mvtnorm)
+```
+we also need to correct when proportions are higher than one
+```{r}
+gridprop1krig[gridprop1krig>1]=1
+gridprop2krig[gridprop2krig>1]=1
+gridprop1krig[gridprop1krig<0]=0
+gridprop2krig[gridprop2krig<0]=0
+```
+
+
+Ok now we can compute the corresponding thresholds for the simulation
+```{r}
+n=dim(gridprop1)
+q1tot=q2tot=array(NA,c(100,2,566))
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+for (x in 1:n[1]){
+  for(y in 1:n[2]){
+    for( z in 1:n[3]){
+      q1tot[x,y,z]=qnorm(gridprop1krig[x,y,z])
+      obj=Inf
+      for(test in 1:10){ # only ten iterations for now
+        q2test = qnorm(test/10)
+        newobj =abs( pmvnorm(lower=c(q1tot[x,y,z],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - gridprop2krig[x,y,z] ) 
+        if (newobj < obj){
+        q2tot[x,y,z] = q2test
+        obj = newobj 
+        }
+      }
+    }
+  }
+}
+image(q1tot[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
+image(q2tot[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
+```
+let s say now we have no correlation between the Gaussian random functions, we have thus a simplification and can directly compute q2, no approximation! 
+```{r}
+n=dim(gridprop1)
+q1tottest=q2tottest=array(NA,c(100,2,566))
+Sigma1 = matrix(c(1,rho,rho,1),2,2)
+for (x in 1:n[1]){
+  for(y in 1:n[2]){
+    for( z in 1:n[3]){
+      q1tottest[x,y,z]=qnorm(gridprop1krig[x,y,z])
+      if (gridprop3krig[x,y,z]!=0) {
+      q2tottest[x,y,z]=qnorm(1-(gridprop2krig[x,y,z]/(1-gridprop1krig[x,y,z])))
+      }
+      else{q2tottest[x,y,z]=-Inf}
+    }
+  }
+}
+image(q1tottest[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
+image(q2tottest[,1,],col=heat.colors(300))
+legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
+     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
+```
+we can check that the threshods on the final grid are equivalent to the one originally computed on the logs
+```{r}
+q1[1,1]
+q1tottest[5,1,1]
+q2[1,1]
+q2tottest[5,1,1]
+```
+
+
+Once the thresholds are computed, we can do the simulation (unconditional for now)
+```{r}
+source("functions.R")
+```
+
+```{r}
+rv1=5
+rv2=5
+rh=800
+b1=0
+b2=0
+rho=0
+Y1<-sim3d(rv1,rh,rh,b1,100,0.1,566,20,100,20,2)
+Y2<-sim3d(rv2,rh,rh,b2,100,0.1,566,20,100,20,2)
+fac<-Y1
+fac[]=3
+fac[Y1<q1tottest]=1
+fac[Y1>q1tottest & Y2>q2tottest]=2
+image(grid[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac[,2,],col=c("darkslategray4","burlywood2","brown3"))
+```
+ok let's now do a conditional simulation
+for the gibbs sampling we dont need the kriged proportions
+
+```{r}
+source("functions.R")
+```
+
+```{r}
+env_lat[is.na(env_lat)]=Inf # with 0, the gibbs sampler will find random values
+grid<-array(NA,c(100,2,566))
+grid[5,1,]<-env_lat[,1]
+grid[15,1,]<-env_lat[,2]
+grid[25,1,]<-env_lat[,3]
+grid[35,1,]<-env_lat[,4]
+grid[45,2,]<-env_lat[,5]
+grid[55,1,]<-env_lat[,6]
+grid[65,1,]<-env_lat[,7]
+grid[75,1,]<-env_lat[,8]
+grid[99,1,]<-env_lat[,9]
+i1grid<-grid
+i1grid[grid==2]=0
+i1grid[grid==3]=0
+image(i1grid[,1,])
+q1map<-array(NA,c(100,2,566))
+q1map[5,1,]<-q1[,1]
+q1map[15,1,]<-q1[,2]
+q1map[25,1,]<-q1[,3]
+q1map[35,1,]<-q1[,4]
+q1map[45,2,]<-q1[,5]
+q1map[55,1,]<-q1[,6]
+q1map[65,1,]<-q1[,7]
+q1map[75,1,]<-q1[,8]
+q1map[99,1,]<-q1[,9]
+
+Y1gibbs<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,3)
+image(Y1gibbs[,1,])
+
+image(i1grid[,1,])
+image(Y1gibbs[,1,])
+image(q1map[,1,])
+```
+test
+```{r}
+source("functions.R")
+test<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,1)
+image(test[,1,],col=heat.colors(300))
+```
+
+```{r}
+i3grid<-grid
+i3grid[grid==1]=Inf
+i3grid[grid==3]=1
+i3grid[grid==2]=0
+q2map<-array(NA,c(100,2,566))
+q2map[5,1,]<-q2tottest[5,1,]
+q2map[15,1,]<-q2tottest[15,1,]
+q2map[25,1,]<-q2tottest[25,1,]
+q2map[35,1,]<-q2tottest[35,1,]
+q2map[45,2,]<-q2tottest[45,2,]
+q2map[55,1,]<-q2tottest[55,1,]
+q2map[65,1,]<-q2tottest[65,1,]
+q2map[75,1,]<-q2tottest[75,1,]
+q2map[99,1,]<-q2tottest[99,1,]
+
+Y2gibbs<-gibbs_sampling_map(i3grid,q2map,0.1,20,10,rv2,rh,rh,b2,3)
+image(Y2gibbs[,1,])
+test<-Y2gibbs
+test[Y2gibbs<q2map]=1
+test[Y2gibbs>q2map]=0
+image(test[,1,])
+image(i3grid[,1,])
+image(Y2gibbs[,1,])
+```
+
+now that we have the gibbs sampling, we need to krig the difference with the unconditional simulation
+je peux probablement utiliser le meme krigeage que pour les proportions
+
+```{r}
+E1=Y1gibbs-Y1
+E2=Y2gibbs-Y2
+E1k<-prop_kriging(E1,rh,20,20,0.1)
+E2k<-prop_kriging(E2,rh,20,20,0.1)
+Y1c=Y1+E1k
+Y2c=Y2+E2k
+facc<-Y1c
+facc[]=3
+facc[Y1c<q1tottest]=1
+facc[Y1c>q1tottest & Y2c>q2tottest]=2
+image(facc[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(grid[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(E1k[,1,],col=heat.colors(300))
+image(E2k[,1,],col=heat.colors(300))
+```
+
+ok now we can look at the diagenesis
+```{r}
+diag_lat<-data.matrix(read.table("diagclastic.txt"))
+diag_lat[diag_lat==0]=3
+d1=d2=d3=diag_lat
+d1[diag_lat!=1]=0
+d2[diag_lat==2]=1
+d2[diag_lat!=2]=0
+d3[diag_lat==3]=1
+d3[diag_lat!=3]=0
+pd1=mean(d1,na.rm=TRUE)
+pd2=mean(d2,na.rm=TRUE)
+pd3=mean(d3,na.rm=TRUE)
+c(pd1,pd2,pd3)
+image(t(diag_lat),col=c("blue","green","red"))
+```
+
+load the diagenesis
+```{r}
+
+im<-array(NA,c(100,1,566))
+im[5,1,]<-env_lat[,1]
+im[6,1,]<-env_lat[,1]
+im[8,1,]<-diag_lat[,1]+3
+im[9,1,]<-diag_lat[,1]+3
+im[15,1,]<-env_lat[,2]
+im[16,1,]<-env_lat[,2]
+im[18,1,]<-diag_lat[,2]+3
+im[19,1,]<-diag_lat[,2]+3
+im[25,1,]<-env_lat[,3]
+im[26,1,]<-env_lat[,3]
+im[28,1,]<-diag_lat[,3]+3
+im[29,1,]<-diag_lat[,3]+3
+im[35,1,]<-env_lat[,4]
+im[36,1,]<-env_lat[,4]
+im[38,1,]<-diag_lat[,4]+3
+im[39,1,]<-diag_lat[,4]+3
+im[45,1,]<-env_lat[,5]
+im[46,1,]<-env_lat[,5]
+im[48,1,]<-diag_lat[,5]+3
+im[49,1,]<-diag_lat[,5]+3
+im[55,1,]<-env_lat[,6]
+im[56,1,]<-env_lat[,6]
+im[58,1,]<-diag_lat[,6]+3
+im[59,1,]<-diag_lat[,6]+3
+im[65,1,]<-env_lat[,7]
+im[66,1,]<-env_lat[,7]
+im[68,1,]<-diag_lat[,7]+3
+im[69,1,]<-diag_lat[,7]+3
+im[75,1,]<-env_lat[,8]
+im[76,1,]<-env_lat[,8]
+im[78,1,]<-diag_lat[,8]+3
+im[79,1,]<-diag_lat[,8]+3
+im[85,1,]<-env_lat[,9]
+im[86,1,]<-env_lat[,9]
+im[88,1,]<-diag_lat[,9]+3
+im[89,1,]<-diag_lat[,9]+3
+image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow","black"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+png(file="logsutah.png",width=4000,height = 2500,res=300,antialias = )
+image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow","black"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+```
+
+simulation now with diagenesis! 
+we first need to compute the relative proportions
+```{r}
+pd1e1=mean(i1*d1,na.rm=TRUE)/p1
+pd2e1=mean(i1*d2,na.rm=TRUE)/p1
+pd3e1=mean(i1*d3,na.rm=TRUE)/p1
+pd1e2=mean(i2*d1,na.rm=TRUE)/p2
+pd2e2=mean(i2*d2,na.rm=TRUE)/p2
+pd3e2=mean(i2*d3,na.rm=TRUE)/p2
+pd1e3=mean(i3*d1,na.rm=TRUE)/p3
+pd2e3=mean(i3*d2,na.rm=TRUE)/p3
+pd3e3=mean(i3*d3,na.rm=TRUE)/p3
+matrix(c(pd1e1,pd2e1,pd3e1,pd1e2,pd2e2,pd3e2,pd1e3,pd2e3,pd3e3),3,3)
+```
+
+now we need to find the thresholds
+given that d1 is only found in e2, its threshold is computed with its general proportion
+but this is not the case for d2
+we need first to compute the thresholds of d2 because will impact threshold of d1
+```{r}
+qd2e2=qnorm(1-pd2e2)
+qd1e2=qnorm(1-pd2e2-pd1e2)
+qd2e3=qnorm(1-pd2e3)
+c(qd2e2,qd1e2,qd2e3)
+```
+Now I can do the simulation, with in mind that I also need to condition it! 
+but it should be simpler than previously. 
+I still need to rewrite the gibbs sampling for that new truncation rule
+```{r}
+dgrid<-array(NA,c(100,2,566))
+diag_lat[is.na(diag_lat)]=Inf
+dgrid[5,1,]=diag_lat[,1]
+dgrid[15,1,]<-diag_lat[,2]
+dgrid[25,1,]<-diag_lat[,3]
+dgrid[35,1,]<-diag_lat[,4]
+dgrid[45,2,]<-diag_lat[,5]
+dgrid[55,1,]<-diag_lat[,6]
+dgrid[65,1,]<-diag_lat[,7]
+dgrid[75,1,]<-diag_lat[,8]
+dgrid[99,1,]<-diag_lat[,9]
+Y3gibbs<-gibbs_sampling_diag2(grid,dgrid,c(qd1e2,qd2e2,qd2e3),0.1,20,10,rv2,rh,rh,b2,3)
+image(Y3gibbs[,1,])
+facdg<-Y3gibbs
+facdg[!is.na(facdg)]=3
+facdg[ grid==2 & Y3gibbs<qd2e2 & Y3gibbs>qd1e2]=1
+facdg[ grid==2 & Y3gibbs>qd2e2 ]=2
+facdg[ grid==3 & Y3gibbs>qd2e3 ]=2
+image(facdg[,1,],col=c("green","yellow","black"))
+image(dgrid[,1,],col=c("green","yellow","black"))
+```
+
+```{r}
+Y3<-sim3d(rv2,rh,rh,b2,100,0.1,566,20,100,20,2)
+```
+```{r}
+E3=Y3gibbs-Y3
+E3k<-prop_kriging(E3,rh,20,20,0.1)
+Y3c=Y3+E3k
+facd<-Y3c
+facd[]=3
+facd[ facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=1
+facd[ facc==2 & Y3c>qd2e2 ]=2
+facd[ facc==3 & Y3c>qd2e3 ]=2
+image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow","black"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
+image(facd[,1,],col=c("green","yellow","black"))
+fac_comb=facc
+fac_comb[facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=4
+fac_comb[facc==2 & Y3c>qd2e2 ]=5
+fac_comb[facc==3 & Y3c>qd2e3 ]=5
+image(facc[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac_comb[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow"))
+```
+Now that it is working, we can make a beautiful simulation in three dimensions
+```{r}
+par(bg="transparent")
+n=dim(gridprop1)
+gridprop1<-gridprop2<-err<-array(NA,c(100,20,566))
+gridprop1[5,10,]<-prop1mat[,1]
+gridprop1[15,9,]<-prop1mat[,2]
+gridprop1[25,10,]<-prop1mat[,3]
+gridprop1[35,9,]<-prop1mat[,4]
+gridprop1[45,10,]<-prop1mat[,5]
+gridprop1[55,9,]<-prop1mat[,6]
+gridprop1[65,10,]<-prop1mat[,7]
+gridprop1[75,9,]<-prop1mat[,8]
+gridprop1[99,10,]<-prop1mat[,9]
+#gridprop1[is.na(grid)]=NA
+gridprop2[5,10,]<-prop2mat[,1]
+gridprop2[15,9,]<-prop2mat[,2]
+gridprop2[25,10,]<-prop2mat[,3]
+gridprop2[35,9,]<-prop2mat[,4]
+gridprop2[45,10,]<-prop2mat[,5]
+gridprop2[55,9,]<-prop2mat[,6]
+gridprop2[65,10,]<-prop2mat[,7]
+gridprop2[75,9,]<-prop2mat[,8]
+gridprop2[99,10,]<-prop2mat[,9]
+#gridprop2[is.na(grid)]=NA
+gridprop3=1-gridprop1-gridprop2
+gridprop1=gridprop1-p1
+gridprop2=gridprop2-p2
+gridprop1krig<-prop_kriging(gridprop1,500,20,20,0.1)
+gridprop2krig<-prop_kriging(gridprop2,500,20,20,0.1)
+# we are trying here to have the same proportions on every y plane (because no information on them but still want non sationarity)
+for (y in 1:20){
+  if (y!=10 & y!=9){
+    gridprop1krig[,y,]=gridprop1krig[,10,]
+    gridprop2krig[,y,]=gridprop2krig[,10,]
+  }
+}
+
+#now we need to retrend the results
+gridprop1krig=gridprop1krig+p1
+gridprop2krig=gridprop2krig+p2
+gridprop3krig=1-gridprop1krig-gridprop2krig # there is a problem  here to solve
+for (x in 1:n[1]){
+  for(y in 1:n[2]){
+    for( z in 1:n[3]){
+      err[x,y,z]=gridprop1krig[x,y,z]+gridprop2krig[x,y,z]
+      if (err[x,y,z]>1){
+        gridprop1krig[x,y,z]=gridprop1krig[x,y,z]+(1-err[x,y,z])
+        gridprop3krig[x,y,z]=0
+      }
+    }
+  }
+}
+
+n=dim(gridprop1)
+q1tottest=q2tottest=array(NA,c(100,20,566))
+for (x in 1:n[1]){
+  for(y in 1:n[2]){
+    for( z in 1:n[3]){
+      q1tottest[x,y,z]=qnorm(gridprop1krig[x,y,z])
+      if (gridprop3krig[x,y,z]>0) {
+        q2tottest[x,y,z]=qnorm(1-(gridprop2krig[x,y,z]/(1-gridprop1krig[x,y,z])))
+      }
+      else{q2tottest[x,y,z]=-Inf}
+    }
+  }
+}
+
+rv1=5
+rv2=5
+rv3=2
+rh=300
+rh3=150
+b1=0
+b2=0
+rho=0
+Y1<-sim3d(rv1,rh,rh,b1,100,0.1,566,20,100,20,20)
+Y2<-sim3d(rv2,rh,rh,b2,100,0.1,566,20,100,20,20)
+Y3<-sim3d(rv3,rh3,rh3,b2,100,0.1,566,20,100,20,20)
+fac<-Y1
+fac[]=3
+fac[Y1<q1tottest]=1
+fac[Y1>q1tottest & Y2>q2tottest]=2
+image(grid[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac[,1,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac[,2,],col=c("darkslategray4","burlywood2","brown3"))
+env_lat[is.na(env_lat)]=Inf # with 0, the gibbs sampler will find random values
+grid<-array(NA,c(100,20,566))
+grid[5,10,]<-env_lat[,1]
+grid[15,9,]<-env_lat[,2]
+grid[25,10,]<-env_lat[,3]
+grid[35,9,]<-env_lat[,4]
+grid[45,10,]<-env_lat[,5]
+grid[55,9,]<-env_lat[,6]
+grid[65,10,]<-env_lat[,7]
+grid[75,9,]<-env_lat[,8]
+grid[99,10,]<-env_lat[,9]
+i1grid<-grid
+i1grid[grid==2]=0
+i1grid[grid==3]=0
+image(i1grid[,1,])
+q1map<-array(NA,c(100,20,566))
+q1map[5,10,]<-q1tottest[5,10,]
+q1map[15,9,]<-q1tottest[15,9,]
+q1map[25,10,]<-q1tottest[25,10,]
+q1map[35,9,]<-q1tottest[35,9,]
+q1map[45,10,]<-q1tottest[45,10,]
+q1map[55,9,]<-q1tottest[55,9,]
+q1map[65,10,]<-q1tottest[65,10,]
+q1map[75,9,]<-q1tottest[75,9,]
+q1map[99,10,]<-q1tottest[99,10,]
+
+Y1gibbs<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,3)
+image(Y1gibbs[,10,])
+image(i1grid[,10,])
+image(Y1gibbs[,10,])
+image(q1map[,10,])
+
+i3grid<-grid
+i3grid[grid==1]=Inf
+i3grid[grid==3]=1
+i3grid[grid==2]=0
+q2map<-array(NA,c(100,20,566))
+q2map[5,10,]<-q2tottest[5,10,]
+q2map[15,9,]<-q2tottest[15,9,]
+q2map[25,10,]<-q2tottest[25,10,]
+q2map[35,9,]<-q2tottest[35,9,]
+q2map[45,10,]<-q2tottest[45,10,]
+q2map[55,9,]<-q2tottest[55,9,]
+q2map[65,10,]<-q2tottest[65,10,]
+q2map[75,9,]<-q2tottest[75,9,]
+q2map[99,10,]<-q2tottest[99,10,]
+
+Y2gibbs<-gibbs_sampling_map(i3grid,q2map,0.1,20,10,rv2,rh,rh,b2,3)
+image(Y2gibbs[,10,])
+
+E1=Y1gibbs-Y1
+E2=Y2gibbs-Y2
+E1k<-prop_kriging(E1,rh,20,20,0.1)
+E2k<-prop_kriging(E2,rh,20,20,0.1)
+Y1c=Y1+E1k
+Y2c=Y2+E2k
+facc<-Y1c
+facc[]=3
+facc[Y1c<q1tottest]=1
+facc[Y1c>q1tottest & Y2c>q2tottest]=2
+image(facc[,10,],col=c("darkslategray4","burlywood2","brown3"))
+image(grid[,10,],col=c("darkslategray4","burlywood2","brown3"))
+image(E1k[,10,],col=heat.colors(300))
+image(E2k[,10,],col=heat.colors(300))
+dgrid<-array(NA,c(100,20,566))
+diag_lat[is.na(diag_lat)]=Inf
+dgrid[5,10,]=diag_lat[,1]
+dgrid[15,9,]<-diag_lat[,2]
+dgrid[25,10,]<-diag_lat[,3]
+dgrid[35,9,]<-diag_lat[,4]
+dgrid[45,10,]<-diag_lat[,5]
+dgrid[55,9,]<-diag_lat[,6]
+dgrid[65,10,]<-diag_lat[,7]
+dgrid[75,9,]<-diag_lat[,8]
+dgrid[99,10,]<-diag_lat[,9]
+Y3gibbs<-gibbs_sampling_diag(grid,dgrid,c(qd1e2,qd2e2,qd2e3),0.1,20,10,rv2,rh,rh,b2,3)
+image(Y3gibbs[,10,])
+facdg<-Y3gibbs
+facdg[!is.na(facdg)]=3
+facdg[ grid==2 & Y3gibbs<qd2e2 & Y3gibbs>qd1e2]=1
+facdg[ grid==2 & Y3gibbs>qd2e2 ]=2
+facdg[ grid==3 & Y3gibbs>qd2e3 ]=2
+image(facdg[,10,],col=c("green","yellow","black"))
+image(dgrid[,10,],col=c("green","yellow","black"))
+E3=Y3gibbs-Y3
+E3k<-prop_kriging(E3,rh3,20,20,0.1)
+Y3c=Y3+E3k
+facd<-Y3c
+facd[]=3
+facd[ facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=1
+facd[ facc==2 & Y3c>qd2e2 ]=2
+facd[ facc==3 & Y3c>qd2e3 ]=2
+
+image(facd[,10,],col=c("green","yellow","black"))
+fac_comb=facc
+fac_comb[facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=4
+fac_comb[facc==2 & Y3c>qd2e2 ]=5
+fac_comb[facc==3 & Y3c>qd2e3 ]=5
+image(facc[,10,],col=c("darkslategray4","burlywood2","brown3"))
+image(fac_comb[,10,],col=c("darkslategray4","burlywood2","brown3","green","yellow"))
+image(dgrid[,10,],col=c("green","yellow","black"))
+```
+
+```{r}
+for ( z in 1:566){
+  for ( y in 1:20){
+    for ( x in 1:100){
+      write(toString(c(fac_comb[x,y,z])),"utahsimu5.csv",append=TRUE)
+    }
+  }
+}
+```
+we also want to export the data
+```{r}
+grid[grid==Inf]=NA
+dgrid[dgrid==Inf]=NA
+comb_grid<-grid
+comb_grid[dgrid==1]=4
+comb_grid[dgrid==2]=5
+for ( z in 1:566){
+  for ( y in 1:20){
+    for ( x in 1:100){
+      write(toString(c(comb_grid[x,y,z])),"utahdata.csv",append=TRUE)
+    }
+  }
+}
+```
+we can also compute the resulting embedded transitions on those simulations
+```{r}
+i1real<-i2real<-i3real<-facc
+i1real[facc!=1]=0
+i2real[facc==2]=1
+i2real[facc!=2]=0
+i3real[facc==3]=1
+i3real[facc!=3]=0
+r12=embedded3d(i1real,i2real)
+r13=embedded3d(i1real,i3real)
+r21=embedded3d(i2real,i1real)
+r23=embedded3d(i2real,i3real)
+r31=embedded3d(i3real,i1real)
+r32=embedded3d(i3real,i2real)
+matrix(c(0,r12,r13,r21,0,r23,r31,r32,0),3,3,byrow=TRUE)
+r12d=embedded2d(i1,i2)
+r13d=embedded2d(i1,i3)
+r21d=embedded2d(i2,i1)
+r23d=embedded2d(i2,i3)
+r31d=embedded2d(i3,i1)
+r32d=embedded2d(i3,i2)
+matrix(c(0,r12d,r13d,r21d,0,r23d,r31d,r32d,0),3,3,byrow=TRUE)
+```
+
+```{r}
+real3<-matrix(c(0,r12,r13,r21,0,r23,r31,r32,0),3,3,byrow=TRUE)
+```
+```{r}
+(real1+real2+real3)/3
+```
+
