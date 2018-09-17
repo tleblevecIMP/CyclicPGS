@@ -1,4 +1,9 @@
 
+
+# Covariance function used for the Gaussian random function
+model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
+model_lat<-function(h,range){return(exp(-(h/range)^2) )}
+
 # basic function to plot a transiogram
 tr_2d_vert<-function(datai,dataj,size,ncell,dz){
   cov<-numeric(size)
