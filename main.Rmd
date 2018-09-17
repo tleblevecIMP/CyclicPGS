@@ -125,7 +125,7 @@ print image
 png(file="logslatediag2.png",width=4000,height = 2500,res=300,antialias = )
 image(x=(1:100)*9.2,y=(1:91)/10,z=im,col=c("lightgreen","dodgerblue4","darkmagenta","red","black","grey","yellow"),ylab="Vertical distance (m)",xlab = "Lateral distance (m)")
 ```
-increasing the details of the section
+Increasing the details of the section
 
 ```{r}
 grid2<-grid_co2<-array(NA,c(100,10,182))
@@ -144,13 +144,11 @@ for (j in 1:182){
 }
 ```
 
-the first figure we want to have is a 3d simulation of the Latemar conditioned ! 
-
-another simu with only three Gaussian functions
-(verifier le gibbs sampling pour la nouvelle truncation rule)
-
+3 dimensional simulation of the Latemar conditionned to the logs
 
 ```{r}
+# Parameters of the simulation defined according to the experimental transiograms
+# this is done in the file fitting.rmd
 par(bg="transparent")
 rv1=0.3
 rv2=1.2
@@ -234,12 +232,15 @@ for ( test in 1:100 ){
 }
 
 c(qd1e4,qd2e2,qd2e3)
-# here Y4 is not used
+
+# The Gibbs sampling is designed for 4 Gaussian functions, 
+# But here we will use only three as defined by the truncation rule
+# Therefore Y3 is here not meaningful 
 Y1<-sim3d(rv1,rhx1,rhy1,b1,100,0.05,182,10,100,25,10)
 Y2<-sim3d(rv2,rhx2,rhy2,b2,100,0.05,182,10,100,25,10)
 Y3<-sim3d(rv3,rhx3,rhy3,b3,100,0.05,182,10,100,25,10)
 Y4<-sim3d(rv4,rhx4,rhy4,b4,100,0.05,182,10,100,25,10)
-#careful to check that we put 0 to extend the gibbs sampling to where there is no data
+
 simwell<-gibbs_sampling3d(grid2,grid_co2,c(q1,q2,q3),c(qd1e4,qd2e2,qd2e3),0.05,10,25,c(rv1,rv2,rv3,rv4),c(rhx1,rhx2,rhx3,rhx4),c(rhy1,rhy2,rhy3,rhy4),c(b1,b2,b3,b4),c(rho,e*model(a14,rv1,b1),f*model(a24,rv2,b2)),c(shift,a14,a24),50)
 Y1well<-simwell[,,1:182]
 Y2well<-Z2well<-simwell[,,183:364]
@@ -255,11 +256,15 @@ for( z in 3:180){
   Y4well[,,z]=(Z4well[,,z]-Y1well[,,z-2]*e-f*Y2well[,,z+2])/sqrt(1-(e^2)-(f^2))
 }
 
+# 4 separate krigings on the independant Gaussian random functions
+# so that they are conditioned 
 Z1c =Y1 + dual_krig_surf(Y1well-Y1,rhx1,rhy1,10,25)
 Z2c<-Y2c<-Y2 +dual_krig_surf(Y2well-Y2,rhx2,rhy2,10,25)
 Z3c<-Y3 +dual_krig_surf(Y3well-Y3,rhx3,rhy3,10,25)
 Z4c<-Y4c<-Y4 +dual_krig_surf(Y4well-Y4,rhx4,rhy4,10,25)
 
+# Transform in the correlated Gaussian random functions
+# according to the shifted linear model of coregionalization
 for( z in 3:180){
   Z2c[,,z]=Y2c[,,z]*sqrt(1-(rho^2)/(rho1a^2))+Z1c[,,z+2]*(rho)/(rho1a)
 }
@@ -267,6 +272,8 @@ for( z in 3:180){
   Z4c[,,z]=Y4c[,,z]*sqrt(1-(e^2)-(f^2))+Z1c[,,z-2]*e+f*Y2c[,,z+2]
 }
 
+# Truncation of the Gaussian random functions into facies
+# according to the truncation rule
 faciesenv<-faciesdiag<-Z1c
 faciesenv[Z1c<q1 & Z2c<q2]=1
 faciesenv[Z1c<q1 & Z2c>q2]=2
@@ -347,7 +354,7 @@ title(main=expression(paste('t'[e4e3],"(h)")),line=-1)
 plot(z,t44real)
 title(main=expression(paste('t'[e4e4],"(h)")),line=-1)
 ```
-average
+Computing the average over three realizations
 ```{r}
 t11reals=(t11real+t11real2+t11real3)/3
 t12reals=(t12real+t12real2+t12real3)/3
@@ -366,7 +373,7 @@ t42reals=(t42real+t42real2+t42real3)/3
 t43reals=(t43real+t43real2+t43real3)/3
 t44reals=(t44real+t44real2+t44real3)/3
 ```
-and also with the diagenetic facies
+and also transigorams with the diagenetic facies
 ```{r}
 d1real<-d2real<-d3real<-faciesdiag
 d1real[faciesdiag!=1]=0
@@ -389,7 +396,7 @@ td2d2real3=tr_3d_vert(d2real,d2real,60)
 
 ```
 
-
+Creating a text file for exporting the realizations
 ```{r}
 for ( z in 1:182){
   for ( y in 1:10){
@@ -400,7 +407,7 @@ for ( z in 1:182){
   }
 }
 ```
-we can also combine the environment and the diagenesis in a single model
+Environments and diagenesis are also combined in a single model
 ```{r}
 combined<-faciesenv
 combined[faciesdiag==2]=5
@@ -415,7 +422,7 @@ for ( z in 1:182){
 ```
 
 
-we also want to enter the data ! 
+Exporting the data in three dimensions
 ```{r}
 griddata<-grid
 griddata[griddata==0]=NA
@@ -502,7 +509,7 @@ matrix(c(0,r12d/s1,r13d/s1,r14d/s1,r21d/s2,0,r23d/s2,r24d/s2,r31d/s3,r32d/s3,0,r
 ```
 
 
-ok it is also necessary to compute the transiograms on the final model
+we also compute the transiograms on the final model
 ```{r}
 real1<-real2<-real3<-real4<-faciesenv
 real1[faciesenv!=1]=0
