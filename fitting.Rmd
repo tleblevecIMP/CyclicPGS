@@ -2,7 +2,7 @@
 title: "R Notebook"
 output: html_notebook
 ---
-we are trying here to fit all the transiogram of the co-simulation !
+Fitting the transiograms of the Latemar
 
 ```{r}
 library(mvtnorm)
@@ -12,15 +12,13 @@ source("cosim_functions.R")
 ```
 
 
-```{r}
-model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
-```
+Proportions of the depositional facies
 ```{r}
 c(pe1,pe2,pe3,pe4)
 ```
 
 
-conditional proportions
+conditional proportions of the diagenetic facies
 ```{r}
 
 pd1e1=mean(d1*e1,na.rm=TRUE)/pe1
@@ -42,60 +40,22 @@ matrix(c(pd1e1,pd1e2,pd1e3,pd1e4,pd2e1,pd2e2,pd2e3,pd2e4,pd3e1,pd3e2,pd3e3,pd3e4
 
 ```
 
-
+Fitting environments of deposition
 ```{r}
-# rv1=0.3
-# rv2=1.2
-# rhx1=40
-# rhx2=40
-# b1=0
-# b2=5
-# rho=0.6
-# shift=0.1
-# rho1a<-model(shift,rv1,b1)
-# warning(rho>rho1a)
-# alpha1=(rho/rho1a)^2
-# alpha2=1-(rho/rho1a)^2
-# rv3=0.2
-# rv4=0.3
-# rhx3=40
-# rhx4=40
-# b3=0
-# b4=0
-# rho34=-0.6
-# c=0.
-# e=0.65
-# a13=-0.
-# a14=-0.1
-# rho1a14 = model(a14,rv1,b1)
 
 rv1=0.3
 rv2=1.2
-rhx1=40
-rhx2=40
 b1=0
 b2=5
-rho=0.6
-shift=0.1
+rho=0.6 # correlation between Z1 and Z2
+shift=0.1 # Shift between Z1 and Z2
 rho1a<-model(shift,rv1,b1)
-warning(rho>rho1a)
+warning(rho>rho1a) # limit for the correlation between Z1 and Z2
 alpha1=(rho/rho1a)^2
 alpha2=1-(rho/rho1a)^2
-rv3=0.2
-rv4=0.3
-rhx3=40
-rhx4=40
-b3=0
-b4=0
-e=-0.8
-f=-0.5
 
-a14=-0.1
-a24=0.1
-rho1a14 = model(a14,rv1,b1)
-rho2a24=model(a24,rv2,b2)
-
-#thresholds
+# the thresholds are computed according to the truncation rule
+# These are for the environment of deposition
 q1=qnorm(pe1+pe2)
 Sigma1 = matrix(c(1,rho,rho,1),2,2)
 q2=0
@@ -120,32 +80,6 @@ for ( test in 1:100 ){
 }
 
 c(q1,q2,q3)
-
-qd1e4=qnorm(pd3e4) # no correlation with the third Gaussian function
-Sigmad = diag(1,3)
-qd2e2=0
-qd2e3=0
-obje2 = Inf
-obje3 = Inf
-for ( test in 1:100 ){
-  qd2e2test = qnorm(test/100)
-  qd2e3test = qnorm(test/100)
-  Sigmad[1,2]=Sigmad[2,1]=e*rho1a14
-  Sigmad[1,3]=Sigmad[3,1]=e*rho1a14*rho
-  Sigmad[2,3]=Sigmad[3,2]=rho
-  newobje2 =abs( pmvnorm(lower=c(qd2e2test,-Inf,q2),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmad)/pe2 - pd2e2 ) 
-  newobje3 =abs( pmvnorm(lower=c(qd2e2test,q1,q3),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigmad)/pe3 - pd2e3 )
-  if (newobje2 < obje2){
-    qd2e2 = qd2e2test
-    obje2 = newobje2
-  }
-  if (newobje3 < obje3){
-    qd2e3 = qd2e3test
-    obje3 = newobje3
-  }
-}
-
-c(qd1e4,qd2e2,qd2e3)
 
 #transiograms
 z = (1:300)/100.
@@ -209,102 +143,10 @@ lines(z,t43_model)
 t44<-tr_2d_vert(e4,e4,30,nz,0.1)
 lines(z,t44_model)
 
-t33d_model=t32d_model=t23d_model=t22d_model=rep(0,300)
-Sigma = diag(1,4)
-for (i in 1:300){
-    d = i/100.
-    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho34
-    Sigma[1,3]=Sigma[3,1]=model(d,rv3,b3)
-    Sigma[1,4]=Sigma[4,1]=Sigma[2,3]=Sigma[3,2]=rho34*model(d,rv3,b3)
-    Sigma[2,4]=Sigma[4,2]=(rho34^2)*model(d,rv3,b3)+(1-rho34^2)*model(d,rv4,b4)
 
-    t22d_model[i]=pmvnorm(lower=c(qd1,qd2,qd1,qd2),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    t23d_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,-Inf),upper=c(Inf,Inf,qd1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    t32d_model[i]=pmvnorm(lower=c(-Inf,-Inf,qd1,qd2),upper=c(qd1,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd3
-    t33d_model[i]=pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(qd1,Inf,qd1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd3
-}
-par(mfrow=c(2,2))
-t22d<-tr_2d_vert(d2,d2,30,nz,0.1)
-lines(z,t22d_model)
-t23d<-tr_2d_vert(d2,d3,30,nz,0.1)
-lines(z,t23d_model)
-t32d<-tr_2d_vert(d3,d2,30,nz,0.1)
-lines(z,t32d_model)
-t33d<-tr_2d_vert(d3,d3,30,nz,0.1)
-lines(z,t33d_model)
-
-td1e1_model=td1e2_model=td1e3_model=td1e4_model=td2e1_model=td2e2_model=td2e3_model=td2e4_model=rep(0,300)
-te1d1_model=te2d1_model=te3d1_model=te4d1_model=te1d2_model=te2d2_model=te3d2_model=te4d2_model=rep(0,300)
-Sigma = diag(1,4)
-for (i in 1:300){
-    d = i/100.
-    Sigma[1,2]=Sigma[2,1]=rho34
-    Sigma[1,3]=Sigma[3,1]=c*model(-d-a13,rv1,b1)
-    Sigma[1,4]=Sigma[4,1]=c*(rho/rho1a)*model(a13+d-shift,rv1,b1)
-    Sigma[2,3]=Sigma[3,2]=e*model(a14+d,rv1,b1)
-    Sigma[2,4]=Sigma[4,2]=e*(rho/rho1a)*model(a14+d-shift,rv1,b1)
-    Sigma[3,4]=Sigma[4,3]=rho
-    
-    td1e1_model[i]=pmvnorm(lower=c(qd1,-Inf,-Inf,-Inf),upper=c(Inf,qd2,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pd1
-    td1e2_model[i]=pmvnorm(lower=c(qd1,-Inf,-Inf,q2),upper=c(Inf,qd2,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd1
-    td1e3_model[i]=pmvnorm(lower=c(qd1,-Inf,q1,q3),upper=c(Inf,qd2,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd1
-    td1e4_model[i]=pmvnorm(lower=c(qd1,-Inf,q1,-Inf),upper=c(Inf,qd2,Inf,q3),mean=c(0,0,0,0),sigma=Sigma)/ pd1
-    
-    td2e1_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,-Inf),upper=c(Inf,Inf,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    td2e2_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,q2),upper=c(Inf,Inf,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    td2e3_model[i]=pmvnorm(lower=c(qd1,qd2,q1,q3),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    td2e4_model[i]=pmvnorm(lower=c(qd1,qd2,q1,-Inf),upper=c(Inf,Inf,Inf,q3),mean=c(0,0,0,0),sigma=Sigma)/ pd2
-    
-    te1d1_model[i]=pmvnorm(lower=c(qd1,-Inf,-Inf,-Inf),upper=c(Inf,qd2,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pe1
-    te2d1_model[i]=pmvnorm(lower=c(qd1,-Inf,-Inf,q2),upper=c(Inf,qd2,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe2
-    te3d1_model[i]=pmvnorm(lower=c(qd1,-Inf,q1,q3),upper=c(Inf,qd2,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe3
-    te4d1_model[i]=pmvnorm(lower=c(qd1,-Inf,q1,-Inf),upper=c(Inf,qd2,Inf,q3),mean=c(0,0,0,0),sigma=Sigma)/ pe4
-    
-    te1d2_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,-Inf),upper=c(Inf,Inf,q1,q2),mean=c(0,0,0,0),sigma=Sigma)/ pe1
-    te2d2_model[i]=pmvnorm(lower=c(qd1,qd2,-Inf,q2),upper=c(Inf,Inf,q1,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe2
-    te3d2_model[i]=pmvnorm(lower=c(qd1,qd2,q1,q3),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ pe3
-    te4d2_model[i]=pmvnorm(lower=c(qd1,qd2,q1,-Inf),upper=c(Inf,Inf,Inf,q3),mean=c(0,0,0,0),sigma=Sigma)/ pe4
-}
-
-par(mfrow=c(2,4))
-tr_2d_vert(d1,e1,30,nz,0.1)
-lines(z,td1e1_model)
-tr_2d_vert(d1,e2,30,nz,0.1)
-lines(z,td1e2_model)
-tr_2d_vert(d1,e3,30,nz,0.1)
-lines(z,td1e3_model)
-tr_2d_vert(d1,e4,30,nz,0.1)
-lines(z,td1e4_model)
-tr_2d_vert(d2,e1,30,nz,0.1)
-lines(z,td2e1_model)
-tr_2d_vert(d2,e2,30,nz,0.1)
-lines(z,td2e2_model)
-tr_2d_vert(d2,e3,30,nz,0.1)
-lines(z,td2e3_model)
-tr_2d_vert(d2,e4,30,nz,0.1)
-lines(z,td2e4_model)
-
-par(mfrow=c(4,2))
-tr_2d_vert(e1,d1,30,nz,0.1)
-lines(z,te1d1_model)
-tr_2d_vert(e2,d1,30,nz,0.1)
-lines(z,te2d1_model)
-tr_2d_vert(e3,d1,30,nz,0.1)
-lines(z,te3d1_model)
-tr_2d_vert(e4,d1,30,nz,0.1)
-lines(z,te4d1_model)
-tr_2d_vert(e1,d2,30,nz,0.1)
-lines(z,te1d2_model)
-tr_2d_vert(e2,d2,30,nz,0.1)
-lines(z,te2d2_model)
-tr_2d_vert(e3,d2,30,nz,0.1)
-lines(z,te3d2_model)
-tr_2d_vert(e4,d2,30,nz,0.1)
-lines(z,te4d2_model)
 
 ```
-beautiful picture for transiograms
-
+paper figure for transiograms of environment of depositions
 
 ```{r}
 png(file="latemartransiotest.png",width=2000,height = 1600,res=300)
@@ -358,162 +200,10 @@ t44<-tr_2d_vert(e4,e4,30,nz,0.1)
 lines(z,t44_model)
 title(main=expression(paste('t'[e4e4],"(h)")),line=-1)
 ```
-we are showing here a figure with the transiograms on the realization
+
+
+We can find the embedded transiograms between environment of deposition
 ```{r}
-z = (1:300)/100.
-z2= (1:60)/20
-png(file="latemartransiototal.png",width=2000,height = 1600,res=300)
-par(mar=c(2,3,1,1),mfrow=c(4,4))
-t11<-tr_2d_vert(e1,e1,30,nz,0.1)
-lines(z,t11_model)
-lines(z2,t11real,lwd=0.6)
-lines(z2,t11real2,lwd=0.6)
-lines(z2,t11real3,lwd=0.6)
-title(main=expression(paste('t'[e1e1],"(h)")),line=-1)
-t12<-tr_2d_vert(e1,e2,30,nz,0.1)
-lines(z,t12_model)
-lines(z2,t12real,lwd=0.5)
-lines(z2,t12real2,lwd=0.5)
-lines(z2,t12real3,lwd=0.5)
-title(main=expression(paste('t'[e1e2],"(h)")),line=-1)
-t13<-tr_2d_vert(e1,e3,30,nz,0.1)
-lines(z,t13_model)
-lines(z2,t13real,lwd=0.5)
-lines(z2,t13real2,lwd=0.5)
-lines(z2,t13real3,lwd=0.5)
-title(main=expression(paste('t'[e1e3],"(h)")),line=-1)
-t14<-tr_2d_vert(e1,e4,30,nz,0.1)
-lines(z,t14_model)
-lines(z2,t14real,lwd=0.5)
-lines(z2,t14real2,lwd=0.5)
-lines(z2,t14real3,lwd=0.5)
-title(main=expression(paste('t'[e1e4],"(h)")),line=-1)
-t21<-tr_2d_vert(e2,e1,30,nz,0.1)
-lines(z,t21_model)
-lines(z2,t21real,lwd=0.5)
-lines(z2,t21real2,lwd=0.5)
-lines(z2,t21real3,lwd=0.5)
-title(main=expression(paste('t'[e2e1],"(h)")),line=-1)
-t22<-tr_2d_vert(e2,e2,30,nz,0.1)
-lines(z,t22_model)
-lines(z2,t22real,lwd=0.5)
-lines(z2,t22real2,lwd=0.5)
-lines(z2,t22real3,lwd=0.5)
-title(main=expression(paste('t'[e2e2],"(h)")),line=-1)
-t23<-tr_2d_vert(e2,e3,30,nz,0.1)
-lines(z,t23_model)
-lines(z2,t23real,lwd=0.5)
-lines(z2,t23real2,lwd=0.5)
-lines(z2,t23real3,lwd=0.5)
-title(main=expression(paste('t'[e2e3],"(h)")),line=-1)
-t24<-tr_2d_vert(e2,e4,30,nz,0.1)
-lines(z,t24_model)
-lines(z2,t24real,lwd=0.5)
-lines(z2,t24real2,lwd=0.5)
-lines(z2,t24real3,lwd=0.5)
-title(main=expression(paste('t'[e2e4],"(h)")),line=-1)
-t31<-tr_2d_vert(e3,e1,30,nz,0.1)
-lines(z,t31_model)
-lines(z2,t31real,lwd=0.5)
-lines(z2,t31real2,lwd=0.5)
-lines(z2,t31real3,lwd=0.5)
-title(main=expression(paste('t'[e3e1],"(h)")),line=-1)
-t32<-tr_2d_vert(e3,e2,30,nz,0.1)
-lines(z,t32_model)
-lines(z2,t32real,lwd=0.5)
-lines(z2,t32real2,lwd=0.5)
-lines(z2,t32real3,lwd=0.5)
-title(main=expression(paste('t'[e3e2],"(h)")),line=-1)
-t33<-tr_2d_vert(e3,e3,30,nz,0.1)
-lines(z,t33_model)
-lines(z2,t33real,lwd=0.5)
-lines(z2,t33real2,lwd=0.5)
-lines(z2,t33real3,lwd=0.5)
-title(main=expression(paste('t'[e3e3],"(h)")),line=-1)
-t34<-tr_2d_vert(e3,e4,30,nz,0.1)
-lines(z,t34_model)
-lines(z2,t34real,lwd=0.5)
-lines(z2,t34real2,lwd=0.5)
-lines(z2,t34real3,lwd=0.5)
-title(main=expression(paste('t'[e3e4],"(h)")),line=-1)
-t41<-tr_2d_vert(e4,e1,30,nz,0.1)
-lines(z,t41_model)
-lines(z2,t41real,lwd=0.5)
-lines(z2,t41real2,lwd=0.5)
-lines(z2,t41real3,lwd=0.5)
-title(main=expression(paste('t'[e4e1],"(h)")),line=-1)
-t42<-tr_2d_vert(e4,e2,30,nz,0.1)
-lines(z,t42_model)
-lines(z2,t42real,lwd=0.5)
-lines(z2,t42real2,lwd=0.5)
-lines(z2,t42real3,lwd=0.5)
-title(main=expression(paste('t'[e4e2],"(h)")),line=-1)
-t43<-tr_2d_vert(e4,e3,30,nz,0.1)
-lines(z,t43_model)
-lines(z2,t43real,lwd=0.5)
-lines(z2,t43real2,lwd=0.5)
-lines(z2,t43real3,lwd=0.5)
-title(main=expression(paste('t'[e4e3],"(h)")),line=-1)
-t44<-tr_2d_vert(e4,e4,30,nz,0.1)
-lines(z,t44_model)
-lines(z2,t44real,lwd=0.5)
-lines(z2,t44real2,lwd=0.5)
-lines(z2,t44real3,lwd=0.5)
-title(main=expression(paste('t'[e4e4],"(h)")),line=-1)
-```
-
-
-lets try to fit the embedded transiograms
-```{r}
-rv1=0.4
-rv2=1.2
-rhx1=40
-rhx2=40
-b1=0
-b2=5
-rho=0.8
-shift=0.1
-rho1a<-model(shift,rv1,b1)
-warning(rho>rho1a)
-alpha1=(rho/rho1a)^2
-alpha2=1-(rho/rho1a)^2
-rv3=0.2
-rv4=0.3
-rhx3=40
-rhx4=40
-b3=0
-b4=0
-e=-0.8
-f=-0.5
-
-a14=-0.1
-a24=0.1
-rho1a14 = model(a14,rv1,b1)
-rho2a24=model(a24,rv2,b2)
-
-#thresholds
-q1=qnorm(pe1+pe2)
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-q2=0
-obj = Inf
-for ( test in 1:100 ){
-  q2test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma1) - pe1 ) 
-  if (newobj < obj){
-    q2 = q2test
-    obj = newobj
-  }
-}
-q3=0
-obj = Inf
-for ( test in 1:100 ){
-  q3test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma1) - pe4 ) 
-  if (newobj < obj){
-    q3 = q3test
-    obj = newobj
-  }
-}
 d = 1/5.
     Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
     Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
@@ -539,183 +229,20 @@ d = 1/5.
     matrix(c(0,r12_model/r11_model,r13_model/r11_model,r14_model/r11_model,r21_model/r22_model,0,r23_model/r22_model,r24_model/r22_model,r31_model/r33_model,r32_model/r33_model,0,r34_model/r33_model,r41_model/r44_model,r42_model/r44_model,r43_model/r44_model,0),4,4,byrow=TRUE)
 ```
 
-
-trying td2e1, td2e2, td2e3 and td2e4
-
-```{r}
-rv1=0.3
-rv2=0.5
-rhx1=40
-rhx2=40
-b1=0
-b2=0
-rho=0.6
-shift=0.1
-rho1a<-model(shift,rv1,b1)
-warning(rho>rho1a)
-alpha1=(rho/rho1a)^2
-alpha2=1-(rho/rho1a)^2
-rv3=0.2
-rv4=0.3
-rhx3=40
-rhx4=40
-b3=0
-b4=0
-e=0.8
-
-a14=0.1
-rho1a14 = model(a14,rv1,b1)
-#thresholds
-q1=qnorm(pe1+pe2)
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-q2=0
-obj = Inf
-for ( test in 1:100 ){
-  q2test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma1) - pe1 ) 
-  if (newobj < obj){
-    q2 = q2test
-    obj = newobj
-  }
-}
-q3=0
-obj = Inf
-for ( test in 1:100 ){
-  q3test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma1) - pe4 ) 
-  if (newobj < obj){
-    q3 = q3test
-    obj = newobj
-  }
-}
-
-c(q1,q2,q3)
-
-qd1e4=qnorm(pd3e4) # no correlation with the third Gaussian function
-Sigmad = diag(1,3)
-qd2e2=0
-qd2e3=0
-obje2 = Inf
-obje3 = Inf
-for ( test in 1:100 ){
-  qd2e2test = qnorm(test/100)
-  qd2e3test = qnorm(test/100)
-  Sigmad[1,2]=Sigmad[2,1]=e*rho1a14
-  Sigmad[1,3]=Sigmad[3,1]=e*(rho/rho1a)*model(a14-shift,rv1,b1)
-  Sigmad[2,3]=Sigmad[3,2]=rho
-  newobje2 =abs( pmvnorm(lower=c(qd2e2test,-Inf,q2),upper=c(Inf,q1,Inf),mean=c(0,0,0),sigma=Sigmad)/pe2 - pd2e2 ) 
-  newobje3 =abs( pmvnorm(lower=c(qd2e2test,q1,q3),upper=c(Inf,Inf,Inf),mean=c(0,0,0),sigma=Sigmad)/pe3 - pd2e3 )
-  if (newobje2 < obje2){
-    qd2e2 = qd2e2test
-    obje2 = newobje2
-  }
-  if (newobje3 < obje3){
-    qd2e3 = qd2e3test
-    obje3 = newobje3
-  }
-}
-
-c(qd1e4,qd2e2,qd2e3)
-
-td2e1_model=td2e2_model=td2e3_model=td2e4_model=rep(0,300)
-
-Sigma = diag(1,5)
-for (i in 1:300){
-    d = i/100.
-    Sigma[1,2]=Sigma[2,1]=Sigma[4,5]=Sigma[5,4]=rho
-    Sigma[1,3]=Sigma[3,1]=e*rho1a14
-    Sigma[1,4]=Sigma[4,1]=model(d,rv1,b1)
-    Sigma[1,5]=Sigma[5,1]=rho*model(d+shift,rv1,b1)/rho1a
-    Sigma[2,3]=Sigma[3,2]=e*rho*model(shift-a14,rv1,b1)/rho1a
-    Sigma[2,4]=Sigma[4,2]=rho*model(shift-d,rv1,b1)/rho1a
-    Sigma[2,5]=Sigma[5,2]=(1-(rho/rho1a)^2)*model(d,rv2,b2)+(rho^2)*model(d,rv1,b1)/(rho1a^2)
-    Sigma[3,4]=Sigma[4,3]=e*model(d-a14,rv1,b1)
-    Sigma[3,5]=Sigma[5,3]=e*rho*model(d+shift-a14,rv1,b1)/rho1a
-    
-    td2e1_model[i]=pmvnorm(lower=c(-Inf,q2,qd2e2,-Inf,-Inf),upper=c(q1,Inf,Inf,q1,q2),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    td2e1_model[i]=td2e1_model[i]+pmvnorm(lower=c(q1,q3,qd2e3,-Inf,-Inf),upper=c(Inf,Inf,Inf,q1,q2),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    if(td2e1_model[i]==0){td2e1_model[i]=NA}
-    
-    td2e2_model[i]=pmvnorm(lower=c(-Inf,q2,qd2e2,-Inf,q2),upper=c(q1,Inf,Inf,q1,Inf),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    td2e2_model[i]=td2e2_model[i]+pmvnorm(lower=c(q1,q3,qd2e3,-Inf,q2),upper=c(Inf,Inf,Inf,q1,Inf),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    if(td2e2_model[i]==0){td2e2_model[i]=NA}
-    
-    td2e3_model[i]=pmvnorm(lower=c(-Inf,q2,qd2e2,q1,q3),upper=c(q1,Inf,Inf,Inf,Inf),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    td2e3_model[i]=td2e3_model[i]+pmvnorm(lower=c(q1,q3,qd2e3,q1,q3),upper=c(Inf,Inf,Inf,Inf,Inf),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    if(td2e3_model[i]==0){td2e3_model[i]=NA}
-    
-    td2e4_model[i]=pmvnorm(lower=c(-Inf,q2,qd2e2,q1,-Inf),upper=c(q1,Inf,Inf,Inf,q3),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    td2e4_model[i]=td2e4_model[i]+pmvnorm(lower=c(q1,q3,qd2e3,q1,-Inf),upper=c(Inf,Inf,Inf,Inf,q3),mean=c(0,0,0,0,0),sigma=Sigma)/ pd2
-    if(td2e4_model[i]==0){td2e4_model[i]=NA}
-}
-z = (1:300)/100.
-tr_2d_vert(d2,e1,30,nz,0.1)
-lines(z,td2e1_model)
-tr_2d_vert(d2,e2,30,nz,0.1)
-lines(z,td2e2_model)
-tr_2d_vert(d2,e3,30,nz,0.1)
-lines(z,td2e3_model)
-tr_2d_vert(d2,e4,30,nz,0.1)
-lines(z,td2e4_model)
-
-```
-
-ok we develop now a more complex model to see if we are able to capture better the co-transiograms of 50dol. 
-We add for this a correlation between the second gaussian function and the fourth which slightly complexify the correlation matrix, but not that much. 
+Fitting the cross-transiograms between partial dolomite and environment of depositions
 
 ```{r}
-rv1=0.3
-rv2=1.2
-rhx1=40
-rhx2=40
-b1=0
-b2=5
-rho=0.6
-shift=0.1
-rho1a<-model(shift,rv1,b1)
-warning(rho>rho1a)
-alpha1=(rho/rho1a)^2
-alpha2=1-(rho/rho1a)^2
-rv3=0.2
-rv4=0.3
-rhx3=40
-rhx4=40
-b3=0
-b4=0
-e=-0.8
-f=-0.5
+# correlations
+e=-0.8 # between the first and third Gaussian random function
+f=-0.5 # between the second and third Gaussian random function
 
+# shifts 
 a14=-0.1
 a24=0.1
 rho1a14 = model(a14,rv1,b1)
 rho2a24=model(a24,rv2,b2)
-#thresholds
-q1=qnorm(pe1+pe2)
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-q2=0
-obj = Inf
-for ( test in 1:100 ){
-  q2test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(-Inf,-Inf),upper=c(q1,q2test),mean=c(0,0),sigma=Sigma1) - pe1 ) 
-  if (newobj < obj){
-    q2 = q2test
-    obj = newobj
-  }
-}
-q3=0
-obj = Inf
-for ( test in 1:100 ){
-  q3test = qnorm(test/100)
-  newobj =abs( pmvnorm(lower=c(q1,-Inf),upper=c(Inf,q3test),mean=c(0,0),sigma=Sigma1) - pe4 ) 
-  if (newobj < obj){
-    q3 = q3test
-    obj = newobj
-  }
-}
 
-c(q1,q2,q3)
-
-
+# Thresholds of the third Gaussian random function
 Sigmad = diag(1,3)
 qd2e2=0
 qd2e3=0
@@ -746,12 +273,11 @@ for ( test in 1:100 ){
     obje4 = newobje4
   }
 }
-
 c(qd1e4,qd2e2,qd2e3)
 
+# cross-transiograms
 td2e1_model=td2e2_model=td2e3_model=td2e4_model=rep(0,300)
 td3e1_model=td3e2_model=td3e3_model=td3e4_model=rep(0,300)
-
 Sigma = diag(1,5)
 for (i in 1:300){
     d = i/100.
@@ -812,7 +338,7 @@ tr_2d_vert(d2,e4,30,nz,0.1)
 lines(z,td2e4_model)
 ```
 
-nice figure
+paper figure
 ```{r}
 z = (1:300)/100.
 z2= (1:60)/20
@@ -820,57 +346,64 @@ png(file="latemarcotransiototal.png",width=3000,height = 1200,res=300)
 par(mar=c(2,3,1,1),mfrow=c(2,4))
 tr_2d_vert(d3,e1,30,nz,0.1)
 lines(z,td3e1_model)
-lines(z2,td3e1real,lwd=0.5)
-lines(z2,td3e1real2,lwd=0.5)
-lines(z2,td3e1real3,lwd=0.5)
+#lines(z2,td3e1real,lwd=0.5)
+#lines(z2,td3e1real2,lwd=0.5)
+#lines(z2,td3e1real3,lwd=0.5)
 title(main=expression(paste('t'[d1e1],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d3,e2,30,nz,0.1)
 lines(z,td3e2_model)
-lines(z2,td3e2real,lwd=0.5)
-lines(z2,td3e2real2,lwd=0.5)
-lines(z2,td3e2real3,lwd=0.5)
+#lines(z2,td3e2real,lwd=0.5)
+#lines(z2,td3e2real2,lwd=0.5)
+#lines(z2,td3e2real3,lwd=0.5)
 title(main=expression(paste('t'[d1e2],"(h)")),cex.main=2)
 tr_2d_vert(d3,e3,30,nz,0.1)
 lines(z,td3e3_model)
-lines(z2,td3e3real,lwd=0.5)
-lines(z2,td3e3real2,lwd=0.5)
-lines(z2,td3e3real3,lwd=0.5)
+#lines(z2,td3e3real,lwd=0.5)
+#lines(z2,td3e3real2,lwd=0.5)
+#lines(z2,td3e3real3,lwd=0.5)
 title(main=expression(paste('t'[d1e3],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d3,e4,30,nz,0.1)
 lines(z,td3e4_model)
-lines(z2,td3e4real,lwd=0.5)
-lines(z2,td3e4real2,lwd=0.5)
-lines(z2,td3e4real3,lwd=0.5)
+#lines(z2,td3e4real,lwd=0.5)
+#lines(z2,td3e4real2,lwd=0.5)
+#lines(z2,td3e4real3,lwd=0.5)
 title(main=expression(paste('t'[d1e4],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,e1,30,nz,0.1)
 lines(z,td2e1_model)
-lines(z2,td2e1real,lwd=0.5)
-lines(z2,td2e1real2,lwd=0.5)
-lines(z2,td2e1real3,lwd=0.5)
+#lines(z2,td2e1real,lwd=0.5)
+#lines(z2,td2e1real2,lwd=0.5)
+#lines(z2,td2e1real3,lwd=0.5)
 title(main=expression(paste('t'[d2e1],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,e2,30,nz,0.1)
 lines(z,td2e2_model)
-lines(z2,td2e2real,lwd=0.5)
-lines(z2,td2e2real2,lwd=0.5)
-lines(z2,td2e2real3,lwd=0.5)
+#lines(z2,td2e2real,lwd=0.5)
+#lines(z2,td2e2real2,lwd=0.5)
+#lines(z2,td2e2real3,lwd=0.5)
 title(main=expression(paste('t'[d2e2],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,e3,30,nz,0.1)
 lines(z,td2e3_model)
-lines(z2,td2e3real,lwd=0.5)
-lines(z2,td2e3real2,lwd=0.5)
-lines(z2,td2e3real3,lwd=0.5)
+#lines(z2,td2e3real,lwd=0.5)
+#lines(z2,td2e3real2,lwd=0.5)
+#lines(z2,td2e3real3,lwd=0.5)
 title(main=expression(paste('t'[d2e3],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,e4,30,nz,0.1)
 title(main=expression(paste('t'[d2e4],"(h)")),line=-1,cex.main=2)
 lines(z,td2e4_model)
-lines(z2,td2e4real,lwd=0.5)
-lines(z2,td2e4real2,lwd=0.5)
-lines(z2,td2e4real3,lwd=0.5)
+#lines(z2,td2e4real,lwd=0.5)
+#lines(z2,td2e4real2,lwd=0.5)
+#lines(z2,td2e4real3,lwd=0.5)
 ```
 
-we need now to look at the auto transiograms of the diagenetic facies 
-we use the preceding covariance matrix and add one order
+Fitting auto transiograms of the diagenetic facies 
+
 ```{r}
+# Parameters
+rv3=0.2
+rv4=0.3
+b3=0
+b4=0
+
+# Transiograms
 Sigmad = diag(1,3)
 qd2e2=0
 qd2e3=0
@@ -957,52 +490,28 @@ png(file="latemardiagtransiototal.png",width=3000,height = 2000,res=300)
 par(mar=c(2,3,1,1),mfrow=c(2,2))
 tr_2d_vert(d3,d3,30,nz,0.1)
 lines(z,td3d3_model)
-lines(z2,td3d3real,lwd=0.5)
-lines(z2,td3d3real2,lwd=0.5)
-lines(z2,td3d3real3,lwd=0.5)
+#lines(z2,td3d3real,lwd=0.5)
+#lines(z2,td3d3real2,lwd=0.5)
+#lines(z2,td3d3real3,lwd=0.5)
 title(main=expression(paste('t'[d1d1],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d3,d2,30,nz,0.1)
 lines(z,td3d2_model)
-lines(z2,td3d2real,lwd=0.5)
-lines(z2,td3d2real2,lwd=0.5)
-lines(z2,td3d2real3,lwd=0.5)
+#lines(z2,td3d2real,lwd=0.5)
+#lines(z2,td3d2real2,lwd=0.5)
+#lines(z2,td3d2real3,lwd=0.5)
 title(main=expression(paste('t'[d1d2],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,d3,30,nz,0.1)
 lines(z,td2d3_model)
-lines(z2,td2d3real,lwd=0.5)
-lines(z2,td2d3real2,lwd=0.5)
-lines(z2,td2d3real3,lwd=0.5)
+#lines(z2,td2d3real,lwd=0.5)
+#lines(z2,td2d3real2,lwd=0.5)
+#lines(z2,td2d3real3,lwd=0.5)
 title(main=expression(paste('t'[d2d1],"(h)")),line=-1,cex.main=2)
 tr_2d_vert(d2,d2,30,nz,0.1)
 lines(z,td2d2_model)
-lines(z2,td2d2real,lwd=0.5)
-lines(z2,td2d2real2,lwd=0.5)
-lines(z2,td2d2real3,lwd=0.5)
+#lines(z2,td2d2real,lwd=0.5)
+#lines(z2,td2d2real2,lwd=0.5)
+#lines(z2,td2d2real3,lwd=0.5)
 title(main=expression(paste('t'[d2d2],"(h)")),line=-1,cex.main=2)
-# 
-# tr_2d_vert(d3,e1,30,nz,0.1)
-# lines(z,td3e1_model)
-# title(main=expression(paste('t'[d1e1],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d3,e2,30,nz,0.1)
-# lines(z,td3e2_model)
-# title(main=expression(paste('t'[d1e2],"(h)")),cex.main=2)
-# tr_2d_vert(d3,e3,30,nz,0.1)
-# lines(z,td3e3_model)
-# title(main=expression(paste('t'[d1e3],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d3,e4,30,nz,0.1)
-# lines(z,td3e4_model)
-# title(main=expression(paste('t'[d1e4],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d2,e1,30,nz,0.1)
-# lines(z,td2e1_model)
-# title(main=expression(paste('t'[d2e1],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d2,e2,30,nz,0.1)
-# lines(z,td2e2_model)
-# title(main=expression(paste('t'[d2e2],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d2,e3,30,nz,0.1)
-# lines(z,td2e3_model)
-# title(main=expression(paste('t'[d2e3],"(h)")),line=-1,cex.main=2)
-# tr_2d_vert(d2,e4,30,nz,0.1)
-# title(main=expression(paste('t'[d2e4],"(h)")),line=-1,cex.main=2)
-# lines(z,td2e4_model)
+
 ```
 
