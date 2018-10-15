@@ -43,7 +43,7 @@ t32exp=tr_2d_vert(i3,i2,200,566,56.6)
 t33exp=tr_2d_vert(i3,i3,200,566,56.6)
 ```
 
-okay, if we want to fit these transiograms, we need to implement non stationarity
+if we want to fit these transiograms, we need to implement non stationarity
 therefore, we need to compute the proportion on each horizontal 
 ```{r}
 prop1=prop2=prop3=numeric(nrow(env_lat))
@@ -56,24 +56,21 @@ plot(1:nrow(i1),prop1,type = "l")
 plot(1:nrow(i1),prop2,type = "l")
 plot(1:nrow(i1),prop3,type = "l")
 ```
-ok we are trying to smooth the curves with moving average
+ok we are now smoothing the curves with moving average
 ```{r}
 f50=rep(1/50,50)
 prop1filter<-filter(prop1,f50,sides=2)
 prop1filter[542:566]=prop1[542:566]
 prop1filter[1:24]=prop1[1:24]
 plot(1:nrow(i1),prop1filter,type = "l")
-#prop2filter<-filter(prop2,f50,sides=2)
-#prop2filter[542:566]=prop2[542:566]
-#prop2filter[1:24]=prop2[1:24]
-#plot(1:nrow(i1),prop2filter,type = "l")
+
 prop3filter<-filter(prop3,f50,sides=2)
 prop3filter[542:566]=prop3[542:566]
 prop3filter[1:24]=prop3[1:24]
 plot(1:nrow(i1),prop3filter,type = "l")
 prop2filter=1-prop1filter-prop3filter
 plot(1:nrow(i1),prop2filter,type = "l")
-#prop1filter+prop2filter+prop3filter
+
 ```
 we want to plot an image with those curves
 ```{r}
@@ -89,108 +86,14 @@ lines(1:n,rep(0,n))
 
 ok now we need to compute the theoretical transiograms with the accurate proportions
 this is not good because the global proportions also depend on the horizontal PC
-```{r}
-rv1=5
-rv2=5
-b1=0
-b2=0
-rho=0
-n=nrow(i1)
-# ok so the thresolds depends on the z, we have a vector
-q1=q2=numeric(n)
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-for (z in 1:n){
-  q1[z]=qnorm(prop1filter[z])
-  obj=Inf
-  for(test in 1:100){
-    q2test = qnorm(test/100)
-    newobj =abs( pmvnorm(lower=c(q1[z],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - prop2filter[z] ) 
-    if (newobj < obj){
-    q2[z] = q2test
-    obj = newobj
-    }
-  }
-}
-```
+
 ```{r}
 model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
 ```
 
-transiograms now only with vertical proportion curves
-```{r}
-x = (1:200)/10.
-t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=rep(0,200)
-Sigma = diag(1,4)
-for (i in 1:200){
-    t1=t2=t3=0
-    d = i/100.
-    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
-    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
-    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
-    for (z in 1:(n-i)){
-      if (prop1filter[z]!=0){
-        t11_model[i]=t11_model[i]+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z],Inf,q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]
-        t12_model[i]=t12_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i],q2[z+i]),upper=c(q1[z],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]  
-        t13_model[i]=t13_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i],-Inf),upper=c(q1[z],Inf,Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop1filter[z]
-        t1= t1+1
-      }
-       
-      if(prop2filter[z]!=0){
-        t21_model[i]=t21_model[i]+pmvnorm(lower=c(q1[z],q2[z],-Inf,-Inf),upper=c(Inf,Inf,q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
-        t22_model[i]=t22_model[i]+pmvnorm(lower=c(q1[z],q2[z],q1[z+i],q2[z+i]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
-        t23_model[i]=t23_model[i]+pmvnorm(lower=c(q1[z],q2[z],q1[z+i],-Inf),upper=c(Inf,Inf,Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop2filter[z]
-        t2=t2+1
-      }
-       
-      if(prop3filter[z]!=0){
-        t31_model[i]=t31_model[i]+pmvnorm(lower=c(q1[z],-Inf,-Inf,-Inf),upper=c(Inf,q2[z],q1[z+i],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
-        t32_model[i]=t32_model[i]+pmvnorm(lower=c(q1[z],-Inf,q1[z+i],q2[z+i]),upper=c(Inf,q2[z],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
-        t33_model[i]=t33_model[i]+pmvnorm(lower=c(q1[z],-Inf,q1[z+i],-Inf),upper=c(Inf,q2[z],Inf,q2[z+i]),mean=c(0,0,0,0),sigma=Sigma)/ prop3filter[z]
-        t3=t3+1
-      }
-       
-    }
-    t11_model[i]=t11_model[i]/t1
-    t12_model[i]=t12_model[i]/t1
-    t13_model[i]=t13_model[i]/t1
-    t21_model[i]=t21_model[i]/t2
-    t22_model[i]=t22_model[i]/t2
-    t23_model[i]=t23_model[i]/t2
-    t31_model[i]=t31_model[i]/t3
-    t32_model[i]=t32_model[i]/t3
-    t33_model[i]=t33_model[i]/t3
-    
-}
-
-par(mfrow=c(3,3))
-plot(x,t11exp,type="l",ylim=c(0,1))
-lines(x,t11_model,lwd=2)
-plot(x,t12exp,type="l",ylim=c(0,1))
-lines(x,t12_model,lwd=2)
-plot(x,t13exp,type="l",ylim=c(0,1))
-lines(x,t13_model,lwd=2)
-plot(x,t21exp,type="l",ylim=c(0,1))
-lines(x,t21_model,lwd=2)
-plot(x,t22exp,type="l",ylim=c(0,1))
-lines(x,t22_model,lwd=2)
-plot(x,t23exp,type="l",ylim=c(0,1))
-lines(x,t23_model,lwd=2)
-plot(x,t31exp,type="l",ylim=c(0,1))
-lines(x,t31_model,lwd=2)
-plot(x,t32exp,type="l",ylim=c(0,1))
-lines(x,t32_model,lwd=2)
-plot(x,t33exp,type="l",ylim=c(0,1))
-lines(x,t33_model,lwd=2)
-```
-
-
-
-The transiograms are still not perfect, we need to also put a lateral non stationarity
 
 okay, if we want to fit these transiograms, we need to implement non stationarity
-therefore, we need to compute the proportion on each horizontal 
+therefore, we need to compute the proportion on each vertical 
 ```{r}
 prop1lat=prop2lat=prop3lat=numeric(ncol(env_lat))
 for (i in 1:ncol(env_lat)){
@@ -230,30 +133,10 @@ image(prop1mat)
 image(prop2mat)
 image(prop3mat)
 ```
-thresholds this one need to be the same that on the whole grid
+Now that we have the proportions on the grid
+we can compute the corresponding thresholds of the Gaussian functions according to the truncation rule
 
-```{r}
-#this one is not precise enough
-n=nrow(i1)
-m=ncol(i1)
-q1=q2=matrix(0,n,m)
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-for (z in 1:n){
-  for(x in 1:m){
-    q1[z,x]=qnorm(prop1mat[z,x])
-    obj=Inf
-    for(test in 1:10){
-      q2test = qnorm(test/10)
-      newobj =abs( pmvnorm(lower=c(q1[z,x],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - prop2mat[z,x] ) 
-      if (newobj < obj){
-      q2[z,x] = q2test
-      obj = newobj
-      }
-    }
-  }
-}
-```
-we implement an analytic way to compute the thresholds
+We can compute the thresholds analytically if the Gaussian functions are not correlated to each other here
 ```{r}
 n=nrow(i1)
 m=ncol(i1)
@@ -268,95 +151,23 @@ for (z in 1:n){
   }
 }
 ```
+Because of the non stationarity, it is more relevant to computed the transition rates between facies rather than the
+transiograms
+we can thus fit the method with the transition rates
 
-
-the transios now with vertical and horizontal proportion curves
-```{r}
-rv1=0.5
-rv2=0.5
-b1=0
-b2=0
-rho=0
-n=nrow(i1)
-m=ncol(i1)
-d = (1:200)/10.
-t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=rep(0,200)
-Sigma = diag(1,4)
-for (i in 1:200){
-    t1=t2=t3=0
-    d = i/100.
-    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
-    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
-    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
-    for (z in 1:(n-i)){
-      for ( x in 1:m){
-        if (prop1mat[z,x]!=0){
-          t11_model[i]=t11_model[i]+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z,x],Inf,q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
-          t12_model[i]=t12_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i,x],q2[z+i,x]),upper=c(q1[z,x],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]  
-          t13_model[i]=t13_model[i]+pmvnorm(lower=c(-Inf,-Inf,q1[z+i,x],-Inf),upper=c(q1[z,x],Inf,Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
-          t1= t1+1
-        }
-         
-        if(prop2mat[z,x]!=0){
-          t21_model[i]=t21_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],-Inf,-Inf),upper=c(Inf,Inf,q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t22_model[i]=t22_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+i,x],q2[z+i,x]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t23_model[i]=t23_model[i]+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+i,x],-Inf),upper=c(Inf,Inf,Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t2=t2+1
-        }
-         
-        if(prop3mat[z,x]!=0){
-          t31_model[i]=t31_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,-Inf,-Inf),upper=c(Inf,q2[z,x],q1[z+i,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t32_model[i]=t32_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+i,x],q2[z+i,x]),upper=c(Inf,q2[z,x],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t33_model[i]=t33_model[i]+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+i,x],-Inf),upper=c(Inf,q2[z,x],Inf,q2[z+i,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t3=t3+1
-        }
-      }
-      
-       
-    }
-    t11_model[i]=t11_model[i]/t1
-    t12_model[i]=t12_model[i]/t1
-    t13_model[i]=t13_model[i]/t1
-    t21_model[i]=t21_model[i]/t2
-    t22_model[i]=t22_model[i]/t2
-    t23_model[i]=t23_model[i]/t2
-    t31_model[i]=t31_model[i]/t3
-    t32_model[i]=t32_model[i]/t3
-    t33_model[i]=t33_model[i]/t3
-    
-}
-d = (1:200)/10.
-par(mfrow=c(3,3))
-plot(d,t11exp,type="l",ylim=c(0,1))
-lines(d,t11_model,lwd=2)
-plot(d,t12exp,type="l",ylim=c(0,1))
-lines(d,t12_model,lwd=2)
-plot(d,t13exp,type="l",ylim=c(0,1))
-lines(d,t13_model,lwd=2)
-plot(d,t21exp,type="l",ylim=c(0,1))
-lines(d,t21_model,lwd=2)
-plot(d,t22exp,type="l",ylim=c(0,1))
-lines(d,t22_model,lwd=2)
-plot(d,t23exp,type="l",ylim=c(0,1))
-lines(d,t23_model,lwd=2)
-plot(d,t31exp,type="l",ylim=c(0,1))
-lines(d,t31_model,lwd=2)
-plot(d,t32exp,type="l",ylim=c(0,1))
-lines(d,t32_model,lwd=2)
-plot(d,t33exp,type="l",ylim=c(0,1))
-lines(d,t33_model,lwd=2)
-```
-After discussion, it is more interesting to only look at the transition rates between facies.
-In that case, it is not necessary to take into account the non stationary proportions
-
+thresholds according to the truncation rule
 ```{r}
 q1g=qnorm(p1)
 q2g=qnorm(1-(p2/(1-p1)))
 ```
 
 ```{r}
+rv1=5
+rv2=5
+rh=800
+b1=0
+b2=0
+rho=0
 rv1=0.6
 rv2=0.7
 Sigma = diag(1,4)
@@ -406,69 +217,7 @@ and mean thicknesses
 -(1/r33exp)*0.1
 ```
 
-
-I finally think that we cannot suppose stationnarity even for the transition rates. 
-Therefore I will compute them in the case of non stationarity
-```{r}
-rv1=5
-rv2=5
-b1=0
-b2=0
-rho=0
-n=nrow(i1)
-m=ncol(i1)
-
-t11_model=t12_model=t13_model=t21_model=t22_model=t23_model=t31_model=t32_model=t33_model=0
-Sigma = diag(1,4)
-  t1=t2=t3=0
-    d = 1/10.
-    Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
-    Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
-    Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
-    Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
-    for (z in 1:(n-1)){
-      for ( x in 1:m){
-        if (prop1mat[z,x]!=0){
-          t11_model=t11_model+pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1[z,x],Inf,q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
-          t12_model=t12_model+pmvnorm(lower=c(-Inf,-Inf,q1[z+1,x],q2[z+1,x]),upper=c(q1[z,x],Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]  
-          t13_model=t13_model+pmvnorm(lower=c(-Inf,-Inf,q1[z+1,x],-Inf),upper=c(q1[z,x],Inf,Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop1mat[z,x]
-          t1= t1+1
-        }
-         
-        if(prop2mat[z,x]!=0){
-          t21_model=t21_model+pmvnorm(lower=c(q1[z,x],q2[z,x],-Inf,-Inf),upper=c(Inf,Inf,q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t22_model=t22_model+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+1,x],q2[z+1,x]),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t23_model=t23_model+pmvnorm(lower=c(q1[z,x],q2[z,x],q1[z+1,x],-Inf),upper=c(Inf,Inf,Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop2mat[z,x]
-          t2=t2+1
-        }
-         
-        if(prop3mat[z,x]!=0){
-          t31_model=t31_model+pmvnorm(lower=c(q1[z,x],-Inf,-Inf,-Inf),upper=c(Inf,q2[z,x],q1[z+1,x],Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t32_model=t32_model+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+1,x],q2[z+1,x]),upper=c(Inf,q2[z,x],Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t33_model=t33_model+pmvnorm(lower=c(q1[z,x],-Inf,q1[z+1,x],-Inf),upper=c(Inf,q2[z,x],Inf,q2[z+1,x]),mean=c(0,0,0,0),sigma=Sigma)/ prop3mat[z,x]
-          t3=t3+1
-        }
-      }
-      
-       
-    }
-    t11_model=(1-t11_model/t1)*100
-    t12_model=(t12_model/t1)*100
-    t13_model=(t13_model/t1)*100
-    t21_model=(t21_model/t2)*100
-    t22_model=(1-t22_model/t2)*100
-    t23_model=(t23_model/t2)*100
-    t31_model=(t31_model/t3)*100
-    t32_model=(t32_model/t3)*100
-    t33_model=(1-t33_model/t3)*100
-    
-matrix(c(0,t12_model/t11_model,t13_model/t11_model,t21_model/t22_model,0,t23_model/t22_model,t31_model/t33_model,t32_model/t33_model,0),3,3,byrow=TRUE)    
-```
-
-
 okay now we create a grid (3d) to simulate the facies 
-we will see if the transiograms really matter
 
 ```{r}
 grid<-array(NA,c(100,1,566))
@@ -485,7 +234,7 @@ image(grid[,1,],col=c("blue","green","red"))
 
 ```
 
-we are printing in a file 
+we are printing this picture in a file 
 ```{r}
 im<-array(NA,c(100,1,566))
 im[5,1,]<-env_lat[,1]
@@ -556,6 +305,7 @@ gridprop2=gridprop2-p2
 ```
 
 ```{r}
+n=dim(gridprop1)
 gridprop1krig<-prop_kriging(gridprop1,500,20,20,0.1)
 gridprop2krig<-prop_kriging(gridprop2,500,20,20,0.1)
 #now we need to retrend the results
@@ -583,6 +333,7 @@ image(gridprop3krig[,1,],col=heat.colors(300))
 legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
      c("0",".5","1"), fill = heat.colors(300)[c(1 , 200,300)], xpd = NA)
 ```
+test
 ```{r}
 gridprop1krig[gridprop1krig>1]
 gridprop2krig[gridprop2krig>1]
@@ -604,34 +355,8 @@ gridprop2krig[gridprop2krig<0]=0
 
 
 Ok now we can compute the corresponding thresholds for the simulation
-```{r}
-n=dim(gridprop1)
-q1tot=q2tot=array(NA,c(100,2,566))
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-for (x in 1:n[1]){
-  for(y in 1:n[2]){
-    for( z in 1:n[3]){
-      q1tot[x,y,z]=qnorm(gridprop1krig[x,y,z])
-      obj=Inf
-      for(test in 1:10){ # only ten iterations for now
-        q2test = qnorm(test/10)
-        newobj =abs( pmvnorm(lower=c(q1tot[x,y,z],q2test),upper=c(Inf,Inf),mean=c(0,0),sigma=Sigma1) - gridprop2krig[x,y,z] ) 
-        if (newobj < obj){
-        q2tot[x,y,z] = q2test
-        obj = newobj 
-        }
-      }
-    }
-  }
-}
-image(q1tot[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
-image(q2tot[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
-```
-let s say now we have no correlation between the Gaussian random functions, we have thus a simplification and can directly compute q2, no approximation! 
+
+we have no correlation between the Gaussian random functions, we have thus a simplification and can directly compute q2, with no approximation
 ```{r}
 n=dim(gridprop1)
 q1tottest=q2tottest=array(NA,c(100,2,566))
@@ -664,9 +389,6 @@ q2tottest[5,1,1]
 
 
 Once the thresholds are computed, we can do the simulation (unconditional for now)
-```{r}
-source("functions.R")
-```
 
 ```{r}
 rv1=5
@@ -688,9 +410,6 @@ image(fac[,2,],col=c("darkslategray4","burlywood2","brown3"))
 ok let's now do a conditional simulation
 for the gibbs sampling we dont need the kriged proportions
 
-```{r}
-source("functions.R")
-```
 
 ```{r}
 env_lat[is.na(env_lat)]=Inf # with 0, the gibbs sampler will find random values
@@ -728,7 +447,6 @@ image(q1map[,1,])
 ```
 test
 ```{r}
-source("functions.R")
 test<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,1)
 image(test[,1,],col=heat.colors(300))
 ```
@@ -760,7 +478,6 @@ image(Y2gibbs[,1,])
 ```
 
 now that we have the gibbs sampling, we need to krig the difference with the unconditional simulation
-je peux probablement utiliser le meme krigeage que pour les proportions
 
 ```{r}
 E1=Y1gibbs-Y1
@@ -779,7 +496,8 @@ image(E1k[,1,],col=heat.colors(300))
 image(E2k[,1,],col=heat.colors(300))
 ```
 
-ok now we can look at the diagenesis
+ok now we can look at the diagenesis, we do it separately because in this example,
+the Gaussian function representing the diagenesis is not correlated to the Gaussian functions of the depositional facies
 ```{r}
 diag_lat<-data.matrix(read.table("diagclastic.txt"))
 diag_lat[diag_lat==0]=3
