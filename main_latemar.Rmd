@@ -6,8 +6,8 @@ output: html_notebook
 
 loading the functions, replace with the location of your files
 ```{r}
-source("C:/Users/tl3315/Desktop/GitHub/AsymBiPGS/co_sim_condi.R")
-source("C:/Users/tl3315/Desktop/GitHub/AsymBiPGS/cosim_functions.R")
+source("C:/Users/tl3315/Desktop/GitHub/CyclicPGS/co_sim_condi.R")
+source("C:/Users/tl3315/Desktop/GitHub/CyclicPGS/cosim_functions.R")
 ```
 Two libraries used that you first need to install with R
 
@@ -508,50 +508,3 @@ r43d=embedded2d(e4,e3)
 s4=r41d+r42d+r43d
 matrix(c(0,r12d/s1,r13d/s1,r14d/s1,r21d/s2,0,r23d/s2,r24d/s2,r31d/s3,r32d/s3,0,r34d/s3,r41d/s4,r42d/s4,r43d/s4,0),4,4,byrow=TRUE)
 ```
-
-
-we also compute the transiograms on the final model
-```{r}
-real1<-real2<-real3<-real4<-faciesenv
-real1[faciesenv!=1]=0
-real2[faciesenv==2]=1
-real2[faciesenv!=2]=0
-real3[faciesenv==3]=1
-real3[faciesenv!=3]=0
-real4[faciesenv==4]=1
-real4[faciesenv!=4]=0
-t11real<-tr_3d_vert(real1,real1,50)
-t12real<-tr_3d_vert(real1,real2,50)
-t13real<-tr_3d_vert(real1,real3,50)
-t14real<-tr_3d_vert(real1,real4,50)
-t21real<-tr_3d_vert(real2,real1,50)
-t22real<-tr_3d_vert(real2,real2,50)
-t23real<-tr_3d_vert(real2,real3,50)
-t24real<-tr_3d_vert(real2,real4,50)
-t31real<-tr_3d_vert(real3,real1,50)
-t32real<-tr_3d_vert(real3,real2,50)
-t33real<-tr_3d_vert(real3,real3,50)
-t34real<-tr_3d_vert(real3,real4,50)
-t41real<-tr_3d_vert(real4,real1,50)
-t42real<-tr_3d_vert(real4,real2,50)
-t43real<-tr_3d_vert(real4,real3,50)
-t44real<-tr_3d_vert(real4,real4,50)
-par(mfrow=c(4,4))
-plot(50,t11real)
-plot(length(t44real),t12real)
-plot(length(t44real),t13real)
-plot(length(t44real),t14real)
-plot(length(t44real),t21real)
-plot(length(t44real),t22real)
-plot(length(t44real),t23real)
-plot(length(t44real),t24real)
-plot(length(t44real),t31real)
-plot(length(t44real),t32real)
-plot(length(t44real),t33real)
-plot(length(t44real),t34real)
-plot(length(t44real),t41real)
-plot(length(t44real),t42real)
-plot(length(t44real),t43real)
-plot(length(t44real),t44real)
-```
-
