@@ -300,21 +300,21 @@ cov_data_line<-function(data_loc,dhx,rhx){
   return(cov_h)
 }
 
-
+# kriging by surface because separable covariance functions
 dual_krig_surf<-function(errorwell,rhx,rhy,dhx,dhy){
   
-  # getting the positions in the grid of one horizontal line, the positions will be the same for every line
+  # getting the positions in the grid of one horizontal surface, the positions will be the same for every surface
   data_loc<-which(!is.na(errorwell[,,1]),arr.ind=TRUE) 
   toestim <-which(is.na(errorwell[,,1]),arr.ind=TRUE)
   n= nrow(data_loc)
   m = nrow(toestim)
   print(n)
   # covariance and inverse covariance matrix of a single surface
+  # it is computed once and will be used for every horizontal level
+  # which means we can invert the matrix only once
   c_data<- cov_data_surf(data_loc,dhx,dhy,rhx,rhy)
   invc<-chol2inv(chol(c_data))
   errorfield <-errorwell
-  print(c_data)
-  print(invc)
   
   # covariance vector between estimation and data of every surface
   c_estim_data<-matrix(0,m,n)
