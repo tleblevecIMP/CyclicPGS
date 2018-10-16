@@ -14,7 +14,7 @@ source("nonstation_functions.R")
 ```{r}
 library(mvtnorm)
 ```
-
+importing depositional facies
 ```{r}
 i1=i2=i3=env_lat<-data.matrix(read.table("envclastic.txt"))
 i1[env_lat!=1]=0
@@ -29,7 +29,7 @@ c(p1,p2,p3)
 image(t(env_lat),col=c("blue","green","red"))
 ```
 
-
+computing transiograms on the data
 ```{r}
 par(mfrow=c(3,3))
 t11exp=tr_2d_vert(i1,i1,200,566,56.6)
@@ -43,7 +43,82 @@ t32exp=tr_2d_vert(i3,i2,200,566,56.6)
 t33exp=tr_2d_vert(i3,i3,200,566,56.6)
 ```
 
-if we want to fit these transiograms, we need to implement non stationarity
+Because of the non stationarity, it is more relevant to computed the transition rates between facies rather than the
+transiograms
+we can thus fit the method with the transition rates
+
+Here are thresholds for the depositional facies according to the truncation rule
+```{r}
+q1g=qnorm(p1)
+q2g=qnorm(1-(p2/(1-p1)))
+```
+
+covariance model for the Gaussian functions
+```{r}
+model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
+```
+
+Model embedded transition probabilities
+```{r}
+rv1=5
+rv2=5
+rh=800
+b1=0
+b2=0
+rho=0
+rv1=0.6
+rv2=0.7
+Sigma = diag(1,4)
+d = 1/10
+Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
+Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
+Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
+Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
+Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
+r11_model=(1-pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1g,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p1)
+r12_model=pmvnorm(lower=c(-Inf,-Inf,q1g,q2g),upper=c(q1g,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/(p1)
+r13_model=pmvnorm(lower=c(-Inf,-Inf,q1g,-Inf),upper=c(q1g,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p1
+r21_model=pmvnorm(lower=c(q1g,q2g,-Inf,-Inf),upper=c(Inf,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2
+r22_model=(1-pmvnorm(lower=c(q1g,q2g,q1g,q2g),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2)
+r23_model=pmvnorm(lower=c(q1g,q2g,q1g,-Inf),upper=c(Inf,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p2
+r31_model=pmvnorm(lower=c(q1g,-Inf,-Inf,-Inf),upper=c(Inf,q2g,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
+r32_model=pmvnorm(lower=c(q1g,-Inf,q1g,q2g),upper=c(Inf,q2g,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
+r33_model=(1-pmvnorm(lower=c(q1g,-Inf,q1g,-Inf),upper=c(Inf,q2g,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p3)
+matrix(c(0,r12_model/r11_model,r13_model/r11_model,r21_model/r22_model,0,r23_model/r22_model,r31_model/r33_model,r32_model/r33_model,0),3,3,byrow=TRUE)
+
+```
+The resulting facies thicknesses are 
+
+```{r}
+(1/r11_model)*0.1
+(1/r22_model)*0.1
+(1/r33_model)*0.1
+```
+and the experimental embedded transitions are
+
+```{r}
+r11exp=-(1-t11exp[1])/0.1
+r12exp=t12exp[1]/0.1
+r13exp=t13exp[1]/0.1
+r21exp=t21exp[1]/0.1
+r22exp=-(1-t22exp[1])/0.1
+r23exp=t23exp[1]/0.1
+r31exp=t31exp[1]/0.1
+r32exp=t32exp[1]/0.1
+r33exp=-(1-t33exp[1])/0.1
+matrix(c(r11exp,r12exp,r13exp,r21exp,r22exp,r23exp,r31exp,r32exp,r33exp),3,3)
+```
+
+and mean thicknesses
+```{r}
+-(1/r11exp)*0.1
+-(1/r22exp)*0.1
+-(1/r33exp)*0.1
+```
+Once the model is fitted, we can do the simulation,
+But we have seen that the proportions are not stationary and we need to take that into account in the simulation
+
+
 therefore, we need to compute the proportion on each horizontal 
 ```{r}
 prop1=prop2=prop3=numeric(nrow(env_lat))
@@ -84,15 +159,8 @@ lines(1:n,rep(0,n))
 ```
 
 
-ok now we need to compute the theoretical transiograms with the accurate proportions
-this is not good because the global proportions also depend on the horizontal PC
-
-```{r}
-model<-function(h,range,b){return(exp(-abs(h/range)^2)*cos(b*h) )}
-```
 
 
-okay, if we want to fit these transiograms, we need to implement non stationarity
 therefore, we need to compute the proportion on each vertical 
 ```{r}
 prop1lat=prop2lat=prop3lat=numeric(ncol(env_lat))
@@ -133,91 +201,9 @@ image(prop1mat)
 image(prop2mat)
 image(prop3mat)
 ```
-Now that we have the proportions on the grid
-we can compute the corresponding thresholds of the Gaussian functions according to the truncation rule
+Once the local proportions have been computed on each data point, we can interpolate those proportions in the grid
 
-We can compute the thresholds analytically if the Gaussian functions are not correlated to each other here
-```{r}
-n=nrow(i1)
-m=ncol(i1)
-q1=q2=matrix(0,n,m)
-for (z in 1:n){
-  for(x in 1:m){
-      q1[z,x]=qnorm(prop1mat[z,x])
-      if (prop3mat[z,x]!=0) {
-      q2[z,x]=qnorm(1-(prop2mat[z,x]/(1-prop1mat[z,x])))
-      }
-      else{q2[z,x]=-Inf}
-  }
-}
-```
-Because of the non stationarity, it is more relevant to computed the transition rates between facies rather than the
-transiograms
-we can thus fit the method with the transition rates
-
-thresholds according to the truncation rule
-```{r}
-q1g=qnorm(p1)
-q2g=qnorm(1-(p2/(1-p1)))
-```
-
-```{r}
-rv1=5
-rv2=5
-rh=800
-b1=0
-b2=0
-rho=0
-rv1=0.6
-rv2=0.7
-Sigma = diag(1,4)
-d = 1/10
-Sigma[1,2]=Sigma[2,1]= Sigma[3,4]=Sigma[4,3]=rho
-Sigma[1,3]=Sigma[3,1]=model(d,rv1,b1)
-Sigma[1,4]=Sigma[4,1]=(rho)*model(abs(d),rv1,b1)
-Sigma[2,3]=Sigma[3,2]=(rho)*model(abs(d),rv1,b1)
-Sigma[2,4]=Sigma[4,2]=(rho^2)*model(d,rv1,b1)+(1-(rho^2))*model(d,rv2,b2)
-r11_model=(1-pmvnorm(lower=c(-Inf,-Inf,-Inf,-Inf),upper=c(q1g,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p1)
-r12_model=pmvnorm(lower=c(-Inf,-Inf,q1g,q2g),upper=c(q1g,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/(p1)
-r13_model=pmvnorm(lower=c(-Inf,-Inf,q1g,-Inf),upper=c(q1g,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p1
-r21_model=pmvnorm(lower=c(q1g,q2g,-Inf,-Inf),upper=c(Inf,Inf,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2
-r22_model=(1-pmvnorm(lower=c(q1g,q2g,q1g,q2g),upper=c(Inf,Inf,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p2)
-r23_model=pmvnorm(lower=c(q1g,q2g,q1g,-Inf),upper=c(Inf,Inf,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p2
-r31_model=pmvnorm(lower=c(q1g,-Inf,-Inf,-Inf),upper=c(Inf,q2g,q1g,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
-r32_model=pmvnorm(lower=c(q1g,-Inf,q1g,q2g),upper=c(Inf,q2g,Inf,Inf),mean=c(0,0,0,0),sigma=Sigma)/p3
-r33_model=(1-pmvnorm(lower=c(q1g,-Inf,q1g,-Inf),upper=c(Inf,q2g,Inf,q2g),mean=c(0,0,0,0),sigma=Sigma)/p3)
-matrix(c(0,r12_model/r11_model,r13_model/r11_model,r21_model/r22_model,0,r23_model/r22_model,r31_model/r33_model,r32_model/r33_model,0),3,3,byrow=TRUE)
-
-
-```
-lets see what the thicknesses are
-```{r}
-(1/r11_model)*0.1
-(1/r22_model)*0.1
-(1/r33_model)*0.1
-```
-
-
-```{r}
-r11exp=-(1-t11exp[1])/0.1
-r12exp=t12exp[1]/0.1
-r13exp=t13exp[1]/0.1
-r21exp=t21exp[1]/0.1
-r22exp=-(1-t22exp[1])/0.1
-r23exp=t23exp[1]/0.1
-r31exp=t31exp[1]/0.1
-r32exp=t32exp[1]/0.1
-r33exp=-(1-t33exp[1])/0.1
-matrix(c(r11exp,r12exp,r13exp,r21exp,r22exp,r23exp,r31exp,r32exp,r33exp),3,3)
-```
-and mean thicknesses
-```{r}
--(1/r11exp)*0.1
--(1/r22exp)*0.1
--(1/r33exp)*0.1
-```
-
-okay now we create a grid (3d) to simulate the facies 
+we create a grid (3d) to simulate the depositional facies 
 
 ```{r}
 grid<-array(NA,c(100,1,566))
@@ -260,244 +246,7 @@ png(file="logsutah.png",width=4000,height = 2500,res=300,antialias = )
 image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
 ```
 
-we also need to put the proportions on a grid
-```{r}
-gridprop1<-gridprop2<-array(NA,c(100,2,566))
-gridprop1[5,1,]<-prop1mat[,1]
-gridprop1[15,1,]<-prop1mat[,2]
-gridprop1[25,1,]<-prop1mat[,3]
-gridprop1[35,1,]<-prop1mat[,4]
-gridprop1[45,2,]<-prop1mat[,5]
-gridprop1[55,1,]<-prop1mat[,6]
-gridprop1[65,1,]<-prop1mat[,7]
-gridprop1[75,1,]<-prop1mat[,8]
-gridprop1[99,1,]<-prop1mat[,9]
-#gridprop1[is.na(grid)]=NA
-gridprop2[5,1,]<-prop2mat[,1]
-gridprop2[15,1,]<-prop2mat[,2]
-gridprop2[25,1,]<-prop2mat[,3]
-gridprop2[35,1,]<-prop2mat[,4]
-gridprop2[45,2,]<-prop2mat[,5]
-gridprop2[55,1,]<-prop2mat[,6]
-gridprop2[65,1,]<-prop2mat[,7]
-gridprop2[75,1,]<-prop2mat[,8]
-gridprop2[99,1,]<-prop2mat[,9]
-#gridprop2[is.na(grid)]=NA
-gridprop3=1-gridprop1-gridprop2
-image(gridprop1[,1,])
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
-image(gridprop2[,1,])
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
-image(gridprop3[,1,])
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(10)[c(1, 10, 20)], xpd = NA)
-```
-okay, now we need to do a kriging to interpolate these proportions
-```{r}
-source("functions.R")
-```
-we need first to untrend the global proportion of each facies to perform the kriging
-```{r}
-gridprop1=gridprop1-p1
-gridprop2=gridprop2-p2
-```
-
-```{r}
-n=dim(gridprop1)
-gridprop1krig<-prop_kriging(gridprop1,500,20,20,0.1)
-gridprop2krig<-prop_kriging(gridprop2,500,20,20,0.1)
-#now we need to retrend the results
-gridprop1krig=gridprop1krig+p1
-gridprop2krig=gridprop2krig+p2
-err=1-gridprop1krig-gridprop2krig
-for (x in 1:n[1]){
-  for(y in 1:n[2]){
-    for( z in 1:n[3]){
-      if (err[x,y,z]<0){
-        gridprop1krig[x,y,z]=gridprop1krig[x,y,z]+err[x,y,z]
-      }
-    }
-  }
-}
-
-image(gridprop1krig[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(300)[c(1, 200,300)], xpd = NA)
-image(gridprop2krig[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(300)[c(1, 200,300)], xpd = NA)
-gridprop3krig<-1-gridprop2krig-gridprop1krig
-image(gridprop3krig[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("0",".5","1"), fill = heat.colors(300)[c(1 , 200,300)], xpd = NA)
-```
-test
-```{r}
-gridprop1krig[gridprop1krig>1]
-gridprop2krig[gridprop2krig>1]
-gridprop1krig[gridprop1krig<0]
-gridprop2krig[gridprop2krig<0]
-```
-
-
-```{r}
-library(mvtnorm)
-```
-we also need to correct when proportions are higher than one
-```{r}
-gridprop1krig[gridprop1krig>1]=1
-gridprop2krig[gridprop2krig>1]=1
-gridprop1krig[gridprop1krig<0]=0
-gridprop2krig[gridprop2krig<0]=0
-```
-
-
-Ok now we can compute the corresponding thresholds for the simulation
-
-we have no correlation between the Gaussian random functions, we have thus a simplification and can directly compute q2, with no approximation
-```{r}
-n=dim(gridprop1)
-q1tottest=q2tottest=array(NA,c(100,2,566))
-Sigma1 = matrix(c(1,rho,rho,1),2,2)
-for (x in 1:n[1]){
-  for(y in 1:n[2]){
-    for( z in 1:n[3]){
-      q1tottest[x,y,z]=qnorm(gridprop1krig[x,y,z])
-      if (gridprop3krig[x,y,z]!=0) {
-      q2tottest[x,y,z]=qnorm(1-(gridprop2krig[x,y,z]/(1-gridprop1krig[x,y,z])))
-      }
-      else{q2tottest[x,y,z]=-Inf}
-    }
-  }
-}
-image(q1tottest[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
-image(q2tottest[,1,],col=heat.colors(300))
-legend(grconvertX(0.5, "device"), grconvertY(1, "device"), 
-     c("-Inf","0","Inf"), fill = heat.colors(300)[c(1, 150,300)], xpd = NA)
-```
-we can check that the threshods on the final grid are equivalent to the one originally computed on the logs
-```{r}
-q1[1,1]
-q1tottest[5,1,1]
-q2[1,1]
-q2tottest[5,1,1]
-```
-
-
-Once the thresholds are computed, we can do the simulation (unconditional for now)
-
-```{r}
-rv1=5
-rv2=5
-rh=800
-b1=0
-b2=0
-rho=0
-Y1<-sim3d(rv1,rh,rh,b1,100,0.1,566,20,100,20,2)
-Y2<-sim3d(rv2,rh,rh,b2,100,0.1,566,20,100,20,2)
-fac<-Y1
-fac[]=3
-fac[Y1<q1tottest]=1
-fac[Y1>q1tottest & Y2>q2tottest]=2
-image(grid[,1,],col=c("darkslategray4","burlywood2","brown3"))
-image(fac[,1,],col=c("darkslategray4","burlywood2","brown3"))
-image(fac[,2,],col=c("darkslategray4","burlywood2","brown3"))
-```
-ok let's now do a conditional simulation
-for the gibbs sampling we dont need the kriged proportions
-
-
-```{r}
-env_lat[is.na(env_lat)]=Inf # with 0, the gibbs sampler will find random values
-grid<-array(NA,c(100,2,566))
-grid[5,1,]<-env_lat[,1]
-grid[15,1,]<-env_lat[,2]
-grid[25,1,]<-env_lat[,3]
-grid[35,1,]<-env_lat[,4]
-grid[45,2,]<-env_lat[,5]
-grid[55,1,]<-env_lat[,6]
-grid[65,1,]<-env_lat[,7]
-grid[75,1,]<-env_lat[,8]
-grid[99,1,]<-env_lat[,9]
-i1grid<-grid
-i1grid[grid==2]=0
-i1grid[grid==3]=0
-image(i1grid[,1,])
-q1map<-array(NA,c(100,2,566))
-q1map[5,1,]<-q1[,1]
-q1map[15,1,]<-q1[,2]
-q1map[25,1,]<-q1[,3]
-q1map[35,1,]<-q1[,4]
-q1map[45,2,]<-q1[,5]
-q1map[55,1,]<-q1[,6]
-q1map[65,1,]<-q1[,7]
-q1map[75,1,]<-q1[,8]
-q1map[99,1,]<-q1[,9]
-
-Y1gibbs<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,3)
-image(Y1gibbs[,1,])
-
-image(i1grid[,1,])
-image(Y1gibbs[,1,])
-image(q1map[,1,])
-```
-test
-```{r}
-test<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,1)
-image(test[,1,],col=heat.colors(300))
-```
-
-```{r}
-i3grid<-grid
-i3grid[grid==1]=Inf
-i3grid[grid==3]=1
-i3grid[grid==2]=0
-q2map<-array(NA,c(100,2,566))
-q2map[5,1,]<-q2tottest[5,1,]
-q2map[15,1,]<-q2tottest[15,1,]
-q2map[25,1,]<-q2tottest[25,1,]
-q2map[35,1,]<-q2tottest[35,1,]
-q2map[45,2,]<-q2tottest[45,2,]
-q2map[55,1,]<-q2tottest[55,1,]
-q2map[65,1,]<-q2tottest[65,1,]
-q2map[75,1,]<-q2tottest[75,1,]
-q2map[99,1,]<-q2tottest[99,1,]
-
-Y2gibbs<-gibbs_sampling_map(i3grid,q2map,0.1,20,10,rv2,rh,rh,b2,3)
-image(Y2gibbs[,1,])
-test<-Y2gibbs
-test[Y2gibbs<q2map]=1
-test[Y2gibbs>q2map]=0
-image(test[,1,])
-image(i3grid[,1,])
-image(Y2gibbs[,1,])
-```
-
-now that we have the gibbs sampling, we need to krig the difference with the unconditional simulation
-
-```{r}
-E1=Y1gibbs-Y1
-E2=Y2gibbs-Y2
-E1k<-prop_kriging(E1,rh,20,20,0.1)
-E2k<-prop_kriging(E2,rh,20,20,0.1)
-Y1c=Y1+E1k
-Y2c=Y2+E2k
-facc<-Y1c
-facc[]=3
-facc[Y1c<q1tottest]=1
-facc[Y1c>q1tottest & Y2c>q2tottest]=2
-image(facc[,1,],col=c("darkslategray4","burlywood2","brown3"))
-image(grid[,1,],col=c("darkslategray4","burlywood2","brown3"))
-image(E1k[,1,],col=heat.colors(300))
-image(E2k[,1,],col=heat.colors(300))
-```
-
-ok now we can look at the diagenesis, we do it separately because in this example,
-the Gaussian function representing the diagenesis is not correlated to the Gaussian functions of the depositional facies
+and the diagenesis
 ```{r}
 diag_lat<-data.matrix(read.table("diagclastic.txt"))
 diag_lat[diag_lat==0]=3
@@ -514,7 +263,7 @@ c(pd1,pd2,pd3)
 image(t(diag_lat),col=c("blue","green","red"))
 ```
 
-load the diagenesis
+load the diagenesis data 
 ```{r}
 
 im<-array(NA,c(100,1,566))
@@ -558,9 +307,9 @@ image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","
 png(file="logsutah.png",width=4000,height = 2500,res=300,antialias = )
 image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow","black"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
 ```
+we suppose that the diagenetic facies have a non stationarity only resuting from the non stationarity of the depositional facies
 
-simulation now with diagenesis! 
-we first need to compute the relative proportions
+we compute the relative proportions of diagenesis in depositional facies
 ```{r}
 pd1e1=mean(i1*d1,na.rm=TRUE)/p1
 pd2e1=mean(i1*d2,na.rm=TRUE)/p1
@@ -574,7 +323,7 @@ pd3e3=mean(i3*d3,na.rm=TRUE)/p3
 matrix(c(pd1e1,pd2e1,pd3e1,pd1e2,pd2e2,pd3e2,pd1e3,pd2e3,pd3e3),3,3)
 ```
 
-now we need to find the thresholds
+now we need to find the corresponding thresholds
 given that d1 is only found in e2, its threshold is computed with its general proportion
 but this is not the case for d2
 we need first to compute the thresholds of d2 because will impact threshold of d1
@@ -584,54 +333,9 @@ qd1e2=qnorm(1-pd2e2-pd1e2)
 qd2e3=qnorm(1-pd2e3)
 c(qd2e2,qd1e2,qd2e3)
 ```
-Now I can do the simulation, with in mind that I also need to condition it! 
-but it should be simpler than previously. 
-I still need to rewrite the gibbs sampling for that new truncation rule
-```{r}
-dgrid<-array(NA,c(100,2,566))
-diag_lat[is.na(diag_lat)]=Inf
-dgrid[5,1,]=diag_lat[,1]
-dgrid[15,1,]<-diag_lat[,2]
-dgrid[25,1,]<-diag_lat[,3]
-dgrid[35,1,]<-diag_lat[,4]
-dgrid[45,2,]<-diag_lat[,5]
-dgrid[55,1,]<-diag_lat[,6]
-dgrid[65,1,]<-diag_lat[,7]
-dgrid[75,1,]<-diag_lat[,8]
-dgrid[99,1,]<-diag_lat[,9]
-Y3gibbs<-gibbs_sampling_diag2(grid,dgrid,c(qd1e2,qd2e2,qd2e3),0.1,20,10,rv2,rh,rh,b2,3)
-image(Y3gibbs[,1,])
-facdg<-Y3gibbs
-facdg[!is.na(facdg)]=3
-facdg[ grid==2 & Y3gibbs<qd2e2 & Y3gibbs>qd1e2]=1
-facdg[ grid==2 & Y3gibbs>qd2e2 ]=2
-facdg[ grid==3 & Y3gibbs>qd2e3 ]=2
-image(facdg[,1,],col=c("green","yellow","black"))
-image(dgrid[,1,],col=c("green","yellow","black"))
-```
+Now I can do the simulation
+The gibbs sampling is different that in the Latemar because the truncation rule is different and adptative
 
-```{r}
-Y3<-sim3d(rv2,rh,rh,b2,100,0.1,566,20,100,20,2)
-```
-```{r}
-E3=Y3gibbs-Y3
-E3k<-prop_kriging(E3,rh,20,20,0.1)
-Y3c=Y3+E3k
-facd<-Y3c
-facd[]=3
-facd[ facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=1
-facd[ facc==2 & Y3c>qd2e2 ]=2
-facd[ facc==3 & Y3c>qd2e3 ]=2
-image(x=(1:100)*200,y=(1:566)/10,z=im[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow","black"),xlab="Lateral distance (m)",ylab="Vertical distance (m)")
-image(facd[,1,],col=c("green","yellow","black"))
-fac_comb=facc
-fac_comb[facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=4
-fac_comb[facc==2 & Y3c>qd2e2 ]=5
-fac_comb[facc==3 & Y3c>qd2e3 ]=5
-image(facc[,1,],col=c("darkslategray4","burlywood2","brown3"))
-image(fac_comb[,1,],col=c("darkslategray4","burlywood2","brown3","green","yellow"))
-```
-Now that it is working, we can make a beautiful simulation in three dimensions
 ```{r}
 par(bg="transparent")
 n=dim(gridprop1)
@@ -685,6 +389,8 @@ for (x in 1:n[1]){
   }
 }
 
+# now that we have the proportions, we can compute the corresponding thresholds
+# because there are no correlations between the gaussian functions, the thresholds can be computed analytically
 n=dim(gridprop1)
 q1tottest=q2tottest=array(NA,c(100,20,566))
 for (x in 1:n[1]){
@@ -699,6 +405,7 @@ for (x in 1:n[1]){
   }
 }
 
+# simulation
 rv1=5
 rv2=5
 rv3=2
