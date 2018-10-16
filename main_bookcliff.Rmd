@@ -324,8 +324,8 @@ matrix(c(pd1e1,pd2e1,pd3e1,pd1e2,pd2e2,pd3e2,pd1e3,pd2e3,pd3e3),3,3)
 ```
 
 now we need to find the corresponding thresholds
-given that d1 is only found in e2, its threshold is computed with its general proportion
-but this is not the case for d2
+given that d1 is only found in e2, its threshold is computed according to its proportion in this facies
+but this is not the case for d2 which is present in e2 and e3
 we need first to compute the thresholds of d2 because will impact threshold of d1
 ```{r}
 qd2e2=qnorm(1-pd2e2)
@@ -333,12 +333,13 @@ qd1e2=qnorm(1-pd2e2-pd1e2)
 qd2e3=qnorm(1-pd2e3)
 c(qd2e2,qd1e2,qd2e3)
 ```
-Now I can do the simulation
+Now the simulation is performed
 The gibbs sampling is different that in the Latemar because the truncation rule is different and adptative
 
 ```{r}
 par(bg="transparent")
 n=dim(gridprop1)
+# local proportions of depositional facies
 gridprop1<-gridprop2<-err<-array(NA,c(100,20,566))
 gridprop1[5,10,]<-prop1mat[,1]
 gridprop1[15,9,]<-prop1mat[,2]
@@ -349,7 +350,7 @@ gridprop1[55,9,]<-prop1mat[,6]
 gridprop1[65,10,]<-prop1mat[,7]
 gridprop1[75,9,]<-prop1mat[,8]
 gridprop1[99,10,]<-prop1mat[,9]
-#gridprop1[is.na(grid)]=NA
+
 gridprop2[5,10,]<-prop2mat[,1]
 gridprop2[15,9,]<-prop2mat[,2]
 gridprop2[25,10,]<-prop2mat[,3]
@@ -359,13 +360,16 @@ gridprop2[55,9,]<-prop2mat[,6]
 gridprop2[65,10,]<-prop2mat[,7]
 gridprop2[75,9,]<-prop2mat[,8]
 gridprop2[99,10,]<-prop2mat[,9]
-#gridprop2[is.na(grid)]=NA
+
+# detrend the local proportions by the global proportion before the kriging
 gridprop3=1-gridprop1-gridprop2
 gridprop1=gridprop1-p1
 gridprop2=gridprop2-p2
+#kriging
 gridprop1krig<-prop_kriging(gridprop1,500,20,20,0.1)
 gridprop2krig<-prop_kriging(gridprop2,500,20,20,0.1)
-# we are trying here to have the same proportions on every y plane (because no information on them but still want non sationarity)
+
+# we put the same proportions on every y plane (because no information in this direction)
 for (y in 1:20){
   if (y!=10 & y!=9){
     gridprop1krig[,y,]=gridprop1krig[,10,]
@@ -376,7 +380,7 @@ for (y in 1:20){
 #now we need to retrend the results
 gridprop1krig=gridprop1krig+p1
 gridprop2krig=gridprop2krig+p2
-gridprop3krig=1-gridprop1krig-gridprop2krig # there is a problem  here to solve
+gridprop3krig=1-gridprop1krig-gridprop2krig 
 for (x in 1:n[1]){
   for(y in 1:n[2]){
     for( z in 1:n[3]){
@@ -389,7 +393,7 @@ for (x in 1:n[1]){
   }
 }
 
-# now that we have the proportions, we can compute the corresponding thresholds
+# now that we have the proportions, we can compute the corresponding thresholds defined by the truncation rule
 # because there are no correlations between the gaussian functions, the thresholds can be computed analytically
 n=dim(gridprop1)
 q1tottest=q2tottest=array(NA,c(100,20,566))
@@ -450,6 +454,8 @@ q1map[65,10,]<-q1tottest[65,10,]
 q1map[75,9,]<-q1tottest[75,9,]
 q1map[99,10,]<-q1tottest[99,10,]
 
+# the Gibbs sampling for the different Gaussian functions can be done separately
+# because there are no correlations between them
 Y1gibbs<-gibbs_sampling_map(i1grid,q1map,0.1,20,10,rv1,rh,rh,b1,3)
 image(Y1gibbs[,10,])
 image(i1grid[,10,])
@@ -476,11 +482,13 @@ image(Y2gibbs[,10,])
 
 E1=Y1gibbs-Y1
 E2=Y2gibbs-Y2
+# kriging the error between unconditional and conditional simulation at data points
 E1k<-prop_kriging(E1,rh,20,20,0.1)
 E2k<-prop_kriging(E2,rh,20,20,0.1)
 Y1c=Y1+E1k
 Y2c=Y2+E2k
 facc<-Y1c
+# truncation of the conditioned Gaussian functions
 facc[]=3
 facc[Y1c<q1tottest]=1
 facc[Y1c>q1tottest & Y2c>q2tottest]=2
@@ -488,6 +496,8 @@ image(facc[,10,],col=c("darkslategray4","burlywood2","brown3"))
 image(grid[,10,],col=c("darkslategray4","burlywood2","brown3"))
 image(E1k[,10,],col=heat.colors(300))
 image(E2k[,10,],col=heat.colors(300))
+
+#now diagenesis, separately because Gaussian functions not correlated
 dgrid<-array(NA,c(100,20,566))
 diag_lat[is.na(diag_lat)]=Inf
 dgrid[5,10,]=diag_lat[,1]
@@ -517,6 +527,7 @@ facd[ facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=1
 facd[ facc==2 & Y3c>qd2e2 ]=2
 facd[ facc==3 & Y3c>qd2e3 ]=2
 
+#final truncation
 image(facd[,10,],col=c("green","yellow","black"))
 fac_comb=facc
 fac_comb[facc==2 & Y3c<qd2e2 & Y3c>qd1e2]=4
