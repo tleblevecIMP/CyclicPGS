@@ -20,6 +20,23 @@ embedded3d<-function(datai,dataj){
   return(embed/Tii) 
 }
 
+sim2d<-function(rv,rh,freq,N,dz,nz,dx,nx){
+  phase <- runif(N,0,2*pi)
+  bin <- sample(c(-1,1),N,replace=T)
+  w1 <- rnorm(N, mean = freq , sd = sqrt(2)/rv)
+  w2 <- rnorm(N, mean = 0 , sd = sqrt(2)/rh)
+  sim<-array(0,c(nx,nz))
+  for(i in 1:N){
+    for ( z in 1:nz){
+      for(x in 1:nx){
+        sim[x,z] = sim[x,z] + cos(bin[i]*w1[i]*(z*dz)+w2[i]*x*dx+phase[i])
+      }
+    }
+  }
+  sim = sim *sqrt(2/N)
+  
+  return(sim)
+}
 
 # unconditional simulation of a gaussian function with Gaussian cosine covariance
 sim3d<-function(rv,rhx,rhy,freq,N,dz,nz,dx,nx,dy,ny){
