@@ -175,6 +175,7 @@ truncnorm<-function(qmin,qmax,mean,sd){
   return(a)
 }
 
+# gibbs sampling with adaptive truncation rule
 gibbs_sampling_map<-function(grid,qmap,dz,dhx,dhy,rv,rhx,rhy,b,it){
   # this algorithm is based on Emery paper (2013); algorithm 7
   
@@ -190,7 +191,7 @@ gibbs_sampling_map<-function(grid,qmap,dz,dhx,dhy,rv,rhx,rhy,b,it){
   inv <- which(c_data <0)
   #initialization uncorrelated gaussian simulation inside the interval
   undsim = rnorm(1,0,1)
-  negsim= negrnorm(q[1],0,1) # we do this so that values do not start completely randomly
+  negsim= negrnorm(q[1],0,1)
   possim= posrnorm(q[1],0,1)
   sim<-rep(0,n)
   for ( i in 1:n){
@@ -213,7 +214,7 @@ gibbs_sampling_map<-function(grid,qmap,dz,dhx,dhy,rv,rhx,rhy,b,it){
   # gibbs sampling
   for( t in 1:it){
     for ( i in 1:n){
-      condi<-(((q-sim)/c_data[i,])+sim[i])
+      condi<-(((q-sim)/c_data[i,])+sim[i]) # the thresholds q are different at every location of the grid according to the proportions
       maxi=Inf
       mini=-Inf
       for ( j in 1:n){
