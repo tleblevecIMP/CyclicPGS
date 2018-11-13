@@ -12,3 +12,5 @@ The main files are:
 main_latemar.Rmd which builds Earth models of the Latemar platform based on the dataset of Peterhansel and Egenhoff (2008).
 
 main_bookcliff.Rmd which builds Earth models of the Bookcliff outcrop based on the dataset of Taylor et al. (2004).
+
+The other files are the functions used to simulate the Earth models and are called in the mains.
