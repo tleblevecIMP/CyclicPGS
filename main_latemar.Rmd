@@ -6,8 +6,8 @@ output: html_notebook
 
 loading the functions, replace with the location of your files
 ```{r}
-source("C:/Users/tl3315/Desktop/GitHub/CyclicPGS/co_sim_condi.R")
-source("C:/Users/tl3315/Desktop/GitHub/CyclicPGS/cosim_functions.R")
+source("co_sim_condi.R")
+source("cosim_functions.R")
 ```
 Two libraries used that you first need to install with R
 
